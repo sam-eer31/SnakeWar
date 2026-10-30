@@ -1,0 +1,31 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Next.js build and export outputs
+/.next/
+/out/
+build/
+dist/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Debug logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local environment configs
+.env*.local
+.env
+
+# User requested: ignore backup folder & archives
+backup/
+*.zip
+
+# System files
+.DS_Store
+Thumbs.db
