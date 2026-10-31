@@ -222,6 +222,7 @@ export class PartyHost {
       const pc = new RTCPeerConnection({
         iceServers: DEFAULT_ICE_SERVERS,
         iceCandidatePoolSize: 2,
+        iceTransportPolicy: 'relay',
       });
       this.peerConnections.set(guestConnId, pc);
 
@@ -534,6 +535,7 @@ export class PartyGuest {
           const pc = new RTCPeerConnection({
             iceServers: DEFAULT_ICE_SERVERS,
             iceCandidatePoolSize: 2,
+            iceTransportPolicy: 'relay',
           });
           this.pc = pc;
 
