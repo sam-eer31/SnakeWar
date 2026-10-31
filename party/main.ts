@@ -317,19 +317,23 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // Support /party/:room as alias for /parties/snake-room/:room
+    // Support /party/:room as alias for /parties/snake-room/:room with Asia-Pacific location hint
     if (url.pathname.startsWith('/party/')) {
       const room = url.pathname.slice('/party/'.length);
       url.pathname = `/parties/snake-room/${room}`;
       return (
-        (await routePartykitRequest(new Request(url.toString(), request), env, { cors: true })) ||
-        new Response('Not found', { status: 404 })
+        (await routePartykitRequest(new Request(url.toString(), request), env, {
+          cors: true,
+          locationHint: 'apac-se',
+        })) || new Response('Not found', { status: 404 })
       );
     }
 
     return (
-      (await routePartykitRequest(request, env, { cors: true })) ||
-      new Response('Not found', { status: 404 })
+      (await routePartykitRequest(request, env, {
+        cors: true,
+        locationHint: 'apac-se',
+      })) || new Response('Not found', { status: 404 })
     );
   },
 };

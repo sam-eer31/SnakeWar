@@ -30,13 +30,15 @@ export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:stun4.l.google.com:19302' },
-  // OpenRelay by Metered: Free global public TURN server with TCP/UDP on port 80 & 443 to punch through Symmetric NAT & firewalls
+  { urls: 'stun:openrelay.metered.ca:80' },
+  // OpenRelay by Metered: Free global public TURN server with TCP/UDP & TLS on port 80 & 443
   {
     urls: [
       'turn:openrelay.metered.ca:80',
       'turn:openrelay.metered.ca:443',
       'turn:openrelay.metered.ca:443?transport=tcp',
+      'turns:openrelay.metered.ca:443',
+      'turns:openrelay.metered.ca:443?transport=tcp',
     ],
     username: 'openrelayproject',
     credential: 'openrelayproject',
@@ -219,6 +221,7 @@ export class PartyHost {
       console.log('[WebRTC Host] Initiating direct P2P offer for guest:', guestConnId);
       const pc = new RTCPeerConnection({
         iceServers: DEFAULT_ICE_SERVERS,
+        iceCandidatePoolSize: 2,
       });
       this.peerConnections.set(guestConnId, pc);
 
@@ -530,6 +533,7 @@ export class PartyGuest {
         if (!this.pc) {
           const pc = new RTCPeerConnection({
             iceServers: DEFAULT_ICE_SERVERS,
+            iceCandidatePoolSize: 2,
           });
           this.pc = pc;
 
