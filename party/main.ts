@@ -23,6 +23,7 @@ export class SnakeRoom extends Server<Env> {
   public ctx: any;
   private hostConnId: string | null = null;
   private metadata: RoomMetadata | null = null;
+  private lastLobbyHeartbeat: number = 0;
 
   // In-memory lobby registry (active on the 'lobby' room instance)
   private publicRooms = new Map<string, RoomMetadata>();
@@ -33,19 +34,29 @@ export class SnakeRoom extends Server<Env> {
     this.env = env;
   }
 
-  async onStart() {
-    if (this.name === 'lobby') {
+  private async ensureLobbyRoomsLoaded() {
+    if (this.name !== 'lobby') return;
+    if (this.publicRooms.size === 0) {
       try {
         const stored = (await this.ctx.storage.get('public_rooms')) as [string, RoomMetadata][] | undefined;
         if (stored) {
-          this.publicRooms = new Map(stored);
+          for (const [k, v] of stored) {
+            this.publicRooms.set(k, v);
+          }
         }
       } catch {}
     }
   }
 
-  onConnect(conn: Connection, _ctx: ConnectionContext) {
+  async onStart() {
     if (this.name === 'lobby') {
+      await this.ensureLobbyRoomsLoaded();
+    }
+  }
+
+  async onConnect(conn: Connection, _ctx: ConnectionContext) {
+    if (this.name === 'lobby') {
+      await this.ensureLobbyRoomsLoaded();
       this.cleanExpiredRooms();
       conn.send(JSON.stringify({
         type: 'community_rooms',
@@ -78,6 +89,7 @@ export class SnakeRoom extends Server<Env> {
           this.publicRooms.delete(data.roomId);
           this.broadcastLobbyUpdate();
         } else if (data.type === 'get_rooms') {
+          await this.ensureLobbyRoomsLoaded();
           this.cleanExpiredRooms();
           conn.send(JSON.stringify({
             type: 'community_rooms',
@@ -126,6 +138,13 @@ export class SnakeRoom extends Server<Env> {
 
       // 3. Host sending snapshots or tick updates
       if (conn.id === this.hostConnId) {
+        const now = Date.now();
+        if (this.metadata && now - this.lastLobbyHeartbeat > 25000) {
+          this.lastLobbyHeartbeat = now;
+          this.metadata.updatedAt = now;
+          this.notifyLobby('register', this.metadata).catch(() => {});
+        }
+
         if ((data.type === 'init_response' || data.type === 'game_over_response') && data.targetConnId) {
           const guest = this.getConnection(data.targetConnId);
           if (guest) {
@@ -253,7 +272,7 @@ export class SnakeRoom extends Server<Env> {
   private cleanExpiredRooms() {
     const now = Date.now();
     for (const [id, room] of this.publicRooms.entries()) {
-      if (now - room.updatedAt > 180000) {
+      if (now - room.updatedAt > 300000) {
         this.publicRooms.delete(id);
       }
     }

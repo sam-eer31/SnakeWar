@@ -145,6 +145,10 @@ export const GameView: React.FC = () => {
       setCurrentZoom(engine.camera.targetZoom);
     };
 
+    engine.onPingUpdate = (ping) => {
+      setOnlineServerInfo((prev) => (prev ? { ...prev, ping } : prev));
+    };
+
     engine.onGameOver = (stats) => {
       setGameOverStats(stats);
       setGameState('gameover');
@@ -605,6 +609,9 @@ export const GameView: React.FC = () => {
 
         const displayId = mode === 'private' ? `Private [${roomCode}]` : roomName;
         setOnlineServerInfo({ roomId: displayId, ping: host.ping });
+        host.onPing = (ping) => {
+          setOnlineServerInfo((prev) => (prev ? { ...prev, ping } : { roomId: displayId, ping }));
+        };
 
         addNotification('info', `Arena hosted on Edge (${mode === 'private' ? `Code: ${roomCode}` : 'Public'}).`);
       } catch (err) {
@@ -852,6 +859,29 @@ export const GameView: React.FC = () => {
           highScore={highScore}
           isNewHighScore={isNewHighScore}
           onPlayAgain={() => {
+            if (engineRef.current) {
+              if (engineRef.current.isOnline) {
+                const client = engineRef.current.networkClient as any;
+                if (client && client.isConnected && typeof client.respawn === 'function') {
+                  client.respawn(
+                    settings.playerName || 'Player',
+                    settings.selectedSkinId || 'emerald-dragon'
+                  );
+                  setGameState('playing');
+                  return;
+                }
+              } else if (engineRef.current.partyHost && engineRef.current.partyHost.isConnected) {
+                engineRef.current.respawnPlayer(
+                  settings.playerName || 'Host',
+                  settings.selectedSkinId || 'emerald-dragon'
+                );
+                setGameState('playing');
+                return;
+              } else {
+                handleStartGame(sessionConfig);
+                return;
+              }
+            }
             if (onlineServerInfo) {
               handleReturnToMenu();
               setShowPublicArenas(true);

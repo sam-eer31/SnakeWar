@@ -40,6 +40,7 @@ export class PartyHost {
   public onGuestLeft: ((guestConnId: string) => void) | null = null;
   public onGuestInput: ((guestConnId: string, angle: number, isBoosting: boolean) => void) | null = null;
   public onDisconnect: (() => void) | null = null;
+  public onPing: ((pingMs: number) => void) | null = null;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -92,6 +93,7 @@ export class PartyHost {
             const data = JSON.parse(event.data);
             if (data.type === 'pong') {
               this.ping = Date.now() - data.t;
+              if (this.onPing) this.onPing(this.ping);
               return;
             }
 
@@ -346,6 +348,19 @@ export class PartyGuest {
           type: 'input',
           angle: Number(angle.toFixed(3)),
           isBoosting,
+        })
+      );
+    }
+  }
+
+  respawn(playerName: string, skinId: string): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({
+          type: 'guest_join',
+          name: playerName,
+          skinId,
+          isSpectator: false,
         })
       );
     }

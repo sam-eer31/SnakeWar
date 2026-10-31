@@ -42,6 +42,29 @@ export interface GameOverStats {
   topRank: number;
 }
 
+interface SnakeSnapshotData {
+  id: string;
+  name: string;
+  skinId: string;
+  tier?: string;
+  isBot: boolean;
+  x: number;
+  y: number;
+  angle: number;
+  radius: number;
+  mass: number;
+  score: number;
+  kills: number;
+  isBoosting: boolean;
+  spawnProtection: boolean;
+  segs: [number, number][];
+}
+
+interface WorldSnapshot {
+  time: number;
+  snakes: Map<string, SnakeSnapshotData>;
+}
+
 export class GameEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -82,6 +105,7 @@ export class GameEngine {
   public onLeaderboardUpdate?: (leaderboard: LeaderboardEntry[]) => void;
   public onGameOver?: (stats: GameOverStats) => void;
   public onNotification?: (notification: any) => void;
+  public onPingUpdate?: (ping: number) => void;
   public dpr: number = 1;
   public segmentGrid: SpatialHashGrid<SnakeSegmentData> = new SpatialHashGrid<SnakeSegmentData>(140);
 
@@ -91,6 +115,10 @@ export class GameEngine {
   private tickCounter: number = 0;
   private lastOnlineScore: number = 50;
   private lastOnlineKills: number = 0;
+
+  // Snapshot Interpolation Ring Buffer (eliminates 100% of network jitter & vibration)
+  private snapshotBuffer: WorldSnapshot[] = [];
+  private readonly INTERP_DELAY_MS: number = 65; // 65ms render delay buffer (absorbs 100% of Wi-Fi / edge jitter)
 
   constructor(canvas: HTMLCanvasElement, settings: GameSettings = DEFAULT_SETTINGS) {
     this.canvas = canvas;
@@ -194,6 +222,9 @@ export class GameEngine {
 
     partyHost.onGuestJoined = (guestId, name, skin, isSpec) => {
       if (!isSpec) {
+        // Remove any old/dead snake with this guestId before respawning
+        this.allSnakes = this.allSnakes.filter((s) => s.id !== guestId);
+
         // Safe spawn in proximity of host (e.g. 650-1100 units away)
         let spawnX = 0;
         let spawnY = 0;
@@ -285,9 +316,17 @@ export class GameEngine {
     this.startTime = performance.now();
     this.bestRankAchieved = 999;
     this.powerUps = [];
+    this.snapshotBuffer = [];
 
+    const existingOnPing = client.onPing;
     client.onPing = (ping) => {
       this.onlinePing = ping;
+      if (existingOnPing) {
+        existingOnPing(ping);
+      }
+      if (this.onPingUpdate) {
+        this.onPingUpdate(ping);
+      }
     };
 
     client.onInit = (data) => {
@@ -350,94 +389,71 @@ export class GameEngine {
         this.foodManager.addFoodItem(f.id.toString(), f.x, f.y, f.v, f.t, f.c || undefined);
       }
 
+      const now = performance.now();
+      const snapSnakes = new Map<string, SnakeSnapshotData>();
       const serverSnakeIds = new Set<string>();
+
       for (const s of data.snakes) {
         serverSnakeIds.add(s.id);
+        snapSnakes.set(s.id, {
+          id: s.id,
+          name: s.name,
+          skinId: s.skinId,
+          tier: s.tier,
+          isBot: !!s.isBot,
+          x: s.x,
+          y: s.y,
+          angle: s.angle,
+          radius: s.radius,
+          mass: s.mass,
+          score: s.score,
+          kills: s.kills || 0,
+          isBoosting: !!s.isBoosting,
+          spawnProtection: !!s.spawnProtection,
+          segs: s.segs || [],
+        });
+
         let localSnake = this.allSnakes.find((snake) => snake.id === s.id);
         if (!localSnake) {
           localSnake = new Snake(s.id, s.name, s.x, s.y, s.skinId, s.isBot);
+          if (s.segs && s.segs.length > 0) {
+            localSnake.segments = s.segs.map(([x, y]) => ({
+              x: Number.isFinite(x) ? x : s.x,
+              y: Number.isFinite(y) ? y : s.y,
+              radius: s.radius,
+              angle: s.angle,
+            }));
+          }
           this.allSnakes.push(localSnake);
         }
 
-        // Smooth server position blending & jitter suppression
-        const dx = s.x - localSnake.position.x;
-        const dy = s.y - localSnake.position.y;
-        const distSq = dx * dx + dy * dy;
-
         if (localSnake === this.playerSnake) {
-          // --- LOCAL PLAYER SNAKE (Client-Authoritative 120 FPS Prediction) ---
+          // --- LOCAL PLAYER SNAKE (Authoritative Stats + 120 FPS Local Prediction) ---
           localSnake.radius = s.radius;
           localSnake.mass = s.mass;
           localSnake.score = s.score;
           localSnake.kills = s.kills || 0;
-          localSnake.isBoosting = s.isBoosting;
           localSnake.spawnProtectionTimer = s.spawnProtection ? 3.0 : 0;
 
-          // Head position reconciliation (gentle 12% blend avoids snapping)
-          if (distSq > 150 * 150) {
+          // Dead-band reconciliation: NEVER jerk or drag backward for normal RTT delay
+          const dx = s.x - localSnake.position.x;
+          const dy = s.y - localSnake.position.y;
+          if (dx * dx + dy * dy > 160 * 160) {
             localSnake.position.set(s.x, s.y);
-          } else if (distSq > 6) {
-            localSnake.position.x += dx * 0.12;
-            localSnake.position.y += dy * 0.12;
           }
-
-          // IMPORTANT: Do NOT overwrite targetAngle or segments for the local player!
-          // The local mouse controls targetAngle (0ms input latency),
-          // and localSnake.update() smoothly solves segments behind the head (0ms vibration)!
-        } else {
-          // --- REMOTE SNAKES (Bots & Other Players) ---
-          if (distSq > 180 * 180) {
-            localSnake.position.set(s.x, s.y);
-          } else {
-            localSnake.position.x += dx * 0.5;
-            localSnake.position.y += dy * 0.5;
-          }
-
-          // Remote angle interpolation
-          let angleDiff = s.angle - localSnake.angle;
-          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-          localSnake.angle += angleDiff * 0.5;
-          localSnake.targetAngle = s.angle;
-
-          localSnake.radius = s.radius;
-          localSnake.mass = s.mass;
-          localSnake.score = s.score;
-          localSnake.kills = s.kills || 0;
-          localSnake.tier = s.tier === 'player' ? undefined : s.tier;
-          localSnake.isBoosting = s.isBoosting;
-          localSnake.spawnProtectionTimer = s.spawnProtection ? 3.0 : 0;
-          if (s.isBot && s.aiState) {
-            localSnake.aiBrain = {
-              state: s.aiState,
-              personality: { archetype: s.archetype || 'VIPER' },
-            };
-          }
-
-          // Smooth remote segments: dynamically adjust size and LERP towards server coordinates
-          if (s.segs && s.segs.length > 0) {
-            const targetLen = s.segs.length;
-            while (localSnake.segments.length < targetLen) {
-              const last = localSnake.segments[localSnake.segments.length - 1] || {
-                x: s.x,
-                y: s.y,
-                radius: s.radius,
-                angle: s.angle,
-              };
-              localSnake.segments.push({ x: last.x, y: last.y, radius: s.radius, angle: s.angle });
-            }
-            while (localSnake.segments.length > targetLen) {
-              localSnake.segments.pop();
-            }
-            for (let i = 0; i < targetLen; i++) {
-              const seg = localSnake.segments[i];
-              seg.x += (s.segs[i][0] - seg.x) * 0.55;
-              seg.y += (s.segs[i][1] - seg.y) * 0.55;
-              seg.radius = s.radius;
-              seg.angle = s.angle;
-            }
-          }
+          // Do NOT touch segments or angle for local player (driven at 120 FPS by local controls)
         }
+      }
+
+      // Push world snapshot to ring buffer for 120 FPS sub-pixel interpolation
+      this.snapshotBuffer.push({
+        time: now,
+        snakes: snapSnakes,
+      });
+
+      // Retain last 12 snapshots (~480ms history, perfectly absorbs all jitter)
+      if (this.snapshotBuffer.length > 12) {
+        this.snapshotBuffer.shift();
       }
 
       this.allSnakes = this.allSnakes.filter((s) => serverSnakeIds.has(s.id));
@@ -695,9 +711,262 @@ export class GameEngine {
     }
   }
 
+  respawnPlayer(name: string, skin: string): void {
+    if (this.isOnline) {
+      if (this.networkClient && 'respawn' in this.networkClient && typeof (this.networkClient as any).respawn === 'function') {
+        (this.networkClient as any).respawn(name, skin);
+      }
+      return;
+    }
+
+    // Host or Local match respawn
+    const r = Math.sqrt(Math.random()) * (this.sessionConfig.arenaRadius * 0.4);
+    const theta = Math.random() * Math.PI * 2;
+    const spawnX = Math.cos(theta) * r;
+    const spawnY = Math.sin(theta) * r;
+
+    this.playerSnake = new Snake('player', name, spawnX, spawnY, skin, false);
+    this.playerSnake.spawnProtectionTimer = 3.5;
+    this.allSnakes = this.allSnakes.filter((s) => s.id !== 'player');
+    this.allSnakes.push(this.playerSnake);
+    this.camera.position.set(spawnX, spawnY);
+    this.camera.target.set(spawnX, spawnY);
+    this.camera.resetManualZoom();
+    this.isSpectating = false;
+    this.spectateTargetId = null;
+    this.startTime = performance.now();
+  }
+
+  /**
+   * Snapshot Interpolation: Glides remote snakes with 120 FPS sub-pixel smoothness.
+   * Completely eliminates packet arrival jitter, physical fighting, and body vibration.
+   */
+  private interpolateRemoteSnakes(): void {
+    if (this.snapshotBuffer.length === 0) return;
+
+    const renderTime = performance.now() - this.INTERP_DELAY_MS;
+
+    let prevSnap: WorldSnapshot | null = null;
+    let nextSnap: WorldSnapshot | null = null;
+
+    for (let i = this.snapshotBuffer.length - 1; i >= 0; i--) {
+      const snap = this.snapshotBuffer[i];
+      if (snap.time <= renderTime) {
+        prevSnap = snap;
+        nextSnap = this.snapshotBuffer[i + 1] || null;
+        break;
+      }
+    }
+
+    // Render time older than oldest snapshot
+    if (!prevSnap && this.snapshotBuffer.length > 0) {
+      prevSnap = this.snapshotBuffer[0];
+      nextSnap = this.snapshotBuffer[1] || this.snapshotBuffer[0];
+    }
+
+    // Render time newer than latest snapshot: smooth linear extrapolation (up to 120ms)
+    if (!nextSnap) {
+      const latest = this.snapshotBuffer[this.snapshotBuffer.length - 1];
+      const timeDiff = Math.min(0.12, Math.max(0, (renderTime - latest.time) / 1000));
+
+      for (const snake of this.allSnakes) {
+        if (snake === this.playerSnake) continue;
+        const snapData = latest.snakes.get(snake.id);
+        if (!snapData) continue;
+
+        snake.radius = snapData.radius;
+        snake.mass = snapData.mass;
+        snake.score = snapData.score;
+        snake.kills = snapData.kills;
+        snake.isBoosting = snapData.isBoosting;
+        snake.spawnProtectionTimer = snapData.spawnProtection ? 3.0 : 0;
+        snake.angle = snapData.angle;
+        snake.targetAngle = snapData.angle;
+
+        const speed = snapData.isBoosting
+          ? GAME_CONFIG.BASE_SPEED * GAME_CONFIG.BOOST_SPEED_MULTIPLIER
+          : GAME_CONFIG.BASE_SPEED;
+        snake.position.x = snapData.x + Math.cos(snapData.angle) * speed * timeDiff;
+        snake.position.y = snapData.y + Math.sin(snapData.angle) * speed * timeDiff;
+
+        if (snapData.segs && snapData.segs.length > 0) {
+          this.applySnapshotSegments(snake, snapData.segs, snapData.radius, snapData.angle);
+        }
+      }
+      return;
+    }
+
+    if (!prevSnap || !nextSnap) return;
+
+    // Normal interpolation between prevSnap and nextSnap
+    const duration = nextSnap.time - prevSnap.time;
+    const alpha = duration > 0 ? Math.max(0, Math.min(1, (renderTime - prevSnap.time) / duration)) : 1;
+
+    for (const snake of this.allSnakes) {
+      if (snake === this.playerSnake) continue;
+
+      const pData = prevSnap.snakes.get(snake.id);
+      const nData = nextSnap.snakes.get(snake.id);
+
+      if (!pData && !nData) continue;
+
+      if (!pData && nData) {
+        snake.position.set(nData.x, nData.y);
+        snake.angle = nData.angle;
+        snake.radius = nData.radius;
+        snake.mass = nData.mass;
+        snake.score = nData.score;
+        snake.kills = nData.kills;
+        snake.isBoosting = nData.isBoosting;
+        snake.spawnProtectionTimer = nData.spawnProtection ? 3.0 : 0;
+        if (nData.segs && nData.segs.length > 0) {
+          this.applySnapshotSegments(snake, nData.segs, nData.radius, nData.angle);
+        }
+        continue;
+      }
+
+      if (pData && !nData) {
+        snake.position.set(pData.x, pData.y);
+        snake.angle = pData.angle;
+        continue;
+      }
+
+      if (pData && nData) {
+        // Continuous Sub-Pixel LERP for Head
+        snake.position.x = pData.x + (nData.x - pData.x) * alpha;
+        snake.position.y = pData.y + (nData.y - pData.y) * alpha;
+
+        // Smooth Shortest Arc Angle LERP
+        let diff = nData.angle - pData.angle;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        snake.angle = pData.angle + diff * alpha;
+        snake.targetAngle = nData.angle;
+
+        snake.radius = pData.radius + (nData.radius - pData.radius) * alpha;
+        snake.mass = pData.mass + (nData.mass - pData.mass) * alpha;
+        snake.score = nData.score;
+        snake.kills = nData.kills;
+        snake.isBoosting = nData.isBoosting;
+        snake.spawnProtectionTimer = nData.spawnProtection ? 3.0 : 0;
+
+        // Sub-pixel continuous segment interpolation
+        this.interpolateSegments(snake, pData.segs, nData.segs, alpha, snake.radius, snake.angle);
+      }
+    }
+  }
+
+  private interpolateSegments(
+    snake: Snake,
+    prevSegs: [number, number][],
+    nextSegs: [number, number][],
+    alpha: number,
+    radius: number,
+    angle: number
+  ): void {
+    if (!nextSegs || nextSegs.length === 0) return;
+
+    const targetLen = nextSegs.length;
+
+    while (snake.segments.length < targetLen) {
+      const idx = snake.segments.length;
+      const src = nextSegs[idx] || [snake.position.x, snake.position.y];
+      snake.segments.push({
+        x: Number.isFinite(src[0]) ? src[0] : snake.position.x,
+        y: Number.isFinite(src[1]) ? src[1] : snake.position.y,
+        radius,
+        angle,
+      });
+    }
+    while (snake.segments.length > targetLen) {
+      snake.segments.pop();
+    }
+
+    const prevLen = prevSegs ? prevSegs.length : 0;
+
+    for (let i = 0; i < targetLen; i++) {
+      const seg = snake.segments[i];
+      const nSeg = nextSegs[i];
+
+      if (i < prevLen && prevSegs[i]) {
+        const pSeg = prevSegs[i];
+        const px = Number.isFinite(pSeg[0]) ? pSeg[0] : nSeg[0];
+        const py = Number.isFinite(pSeg[1]) ? pSeg[1] : nSeg[1];
+        const nx = Number.isFinite(nSeg[0]) ? nSeg[0] : px;
+        const ny = Number.isFinite(nSeg[1]) ? nSeg[1] : py;
+        seg.x = px + (nx - px) * alpha;
+        seg.y = py + (ny - py) * alpha;
+      } else {
+        const nx = Number.isFinite(nSeg[0]) ? nSeg[0] : seg.x;
+        const ny = Number.isFinite(nSeg[1]) ? nSeg[1] : seg.y;
+        seg.x += (nx - seg.x) * 0.4;
+        seg.y += (ny - seg.y) * 0.4;
+      }
+
+      // Serpentine anatomical taper profile
+      const u = targetLen > 1 ? i / (targetLen - 1) : 0;
+      let taper = 1.0;
+      if (u < 0.06) {
+        taper = 0.86 + 0.14 * (u / 0.06);
+      } else if (u > 0.60) {
+        const p = (u - 0.60) / 0.40;
+        const cosP = Math.cos(p * Math.PI * 0.5);
+        taper = 0.12 + 0.88 * (cosP * cosP);
+      }
+      seg.radius = Math.max(1.8, radius * taper);
+
+      const prevX = i === 0 ? snake.position.x : snake.segments[i - 1].x;
+      const prevY = i === 0 ? snake.position.y : snake.segments[i - 1].y;
+      seg.angle = Math.atan2(prevY - seg.y, prevX - seg.x);
+    }
+  }
+
+  private applySnapshotSegments(
+    snake: Snake,
+    segs: [number, number][],
+    radius: number,
+    angle: number
+  ): void {
+    const targetLen = segs.length;
+    while (snake.segments.length < targetLen) {
+      const idx = snake.segments.length;
+      const src = segs[idx] || [snake.position.x, snake.position.y];
+      snake.segments.push({
+        x: Number.isFinite(src[0]) ? src[0] : snake.position.x,
+        y: Number.isFinite(src[1]) ? src[1] : snake.position.y,
+        radius,
+        angle,
+      });
+    }
+    while (snake.segments.length > targetLen) {
+      snake.segments.pop();
+    }
+    for (let i = 0; i < targetLen; i++) {
+      const seg = snake.segments[i];
+      const s = segs[i];
+      if (s) {
+        seg.x = Number.isFinite(s[0]) ? s[0] : seg.x;
+        seg.y = Number.isFinite(s[1]) ? s[1] : seg.y;
+      }
+      const u = targetLen > 1 ? i / (targetLen - 1) : 0;
+      let taper = 1.0;
+      if (u < 0.06) {
+        taper = 0.86 + 0.14 * (u / 0.06);
+      } else if (u > 0.60) {
+        const p = (u - 0.60) / 0.40;
+        const cosP = Math.cos(p * Math.PI * 0.5);
+        taper = 0.12 + 0.88 * (cosP * cosP);
+      }
+      seg.radius = Math.max(1.8, radius * taper);
+      const prevX = i === 0 ? snake.position.x : snake.segments[i - 1].x;
+      const prevY = i === 0 ? snake.position.y : snake.segments[i - 1].y;
+      seg.angle = Math.atan2(prevY - seg.y, prevX - seg.x);
+    }
+  }
+
   private update(dt: number, deltaRatio: number): void {
     if (this.isOnline) {
-      // 1. Send input & run 120 FPS client prediction for local player
+      // 1. Client prediction for local player (120 FPS buttery-smooth response)
       if (this.playerSnake && !this.playerSnake.isDead) {
         this.networkClient?.sendInput(this.playerSnake.targetAngle, this.playerSnake.isBoosting);
         this.playerSnake.update(deltaRatio);
@@ -707,13 +976,17 @@ export class GameEngine {
         if (target && !target.isDead) {
           this.camera.setTarget(target.position);
         }
+      } else if (!this.camera.isFreeCam) {
+        // Player is dead / waiting on game over screen: follow top alive snake so view is never stuck
+        const topLiving = this.allSnakes.find((s) => !s.isDead);
+        if (topLiving) {
+          this.camera.setTarget(topLiving.position);
+        }
       }
 
-      // 2. Smoothly advance other snakes between ticks (eliminates vibration & stutter)
-      for (const snake of this.allSnakes) {
-        if (snake === this.playerSnake || snake.isDead) continue;
-        snake.update(deltaRatio);
-      }
+      // 2. Snapshot Interpolation for all remote snakes (Host snake, other players, bots)
+      // Glides sub-pixel smooth at 120 FPS with 0 vibration!
+      this.interpolateRemoteSnakes();
 
       this.foodManager.update(deltaRatio);
       if (this.settings.particles) {
