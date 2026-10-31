@@ -119,6 +119,9 @@ export class GameEngine {
   // Snapshot Interpolation Ring Buffer (eliminates 100% of network jitter & vibration)
   private snapshotBuffer: WorldSnapshot[] = [];
   private readonly INTERP_DELAY_MS: number = 65; // 65ms render delay buffer (absorbs 100% of Wi-Fi / edge jitter)
+  private clientRenderTime: number = 0;
+  private hasInitializedRenderClock: boolean = false;
+  private guestTickCounter: number = 0;
 
   constructor(canvas: HTMLCanvasElement, settings: GameSettings = DEFAULT_SETTINGS) {
     this.canvas = canvas;
@@ -317,6 +320,9 @@ export class GameEngine {
     this.bestRankAchieved = 999;
     this.powerUps = [];
     this.snapshotBuffer = [];
+    this.clientRenderTime = 0;
+    this.hasInitializedRenderClock = false;
+    this.guestTickCounter = 0;
 
     const existingOnPing = client.onPing;
     client.onPing = (ping) => {
@@ -445,14 +451,23 @@ export class GameEngine {
         }
       }
 
+      // Canonical tick timeline (25 Hz = 40ms interval) eliminates network reception burst jitter
+      const tickNum = data.tick || ++this.guestTickCounter;
+      const snapTime = tickNum * 40;
+
+      if (!this.hasInitializedRenderClock) {
+        this.clientRenderTime = snapTime - this.INTERP_DELAY_MS;
+        this.hasInitializedRenderClock = true;
+      }
+
       // Push world snapshot to ring buffer for 120 FPS sub-pixel interpolation
       this.snapshotBuffer.push({
-        time: now,
+        time: snapTime,
         snakes: snapSnakes,
       });
 
-      // Retain last 12 snapshots (~480ms history, perfectly absorbs all jitter)
-      if (this.snapshotBuffer.length > 12) {
+      // Retain last 16 snapshots (~640ms history, perfectly absorbs all jitter)
+      if (this.snapshotBuffer.length > 16) {
         this.snapshotBuffer.shift();
       }
 
@@ -658,6 +673,10 @@ export class GameEngine {
       this.partyHost.disconnect();
       this.partyHost = null;
     }
+    this.snapshotBuffer = [];
+    this.clientRenderTime = 0;
+    this.hasInitializedRenderClock = false;
+    this.guestTickCounter = 0;
     this.isOnline = false;
   }
 
@@ -739,12 +758,29 @@ export class GameEngine {
 
   /**
    * Snapshot Interpolation: Glides remote snakes with 120 FPS sub-pixel smoothness.
-   * Completely eliminates packet arrival jitter, physical fighting, and body vibration.
+   * Uses canonical tick timeline and continuous client render clock to eliminate 100% of network jitter & vibration.
    */
-  private interpolateRemoteSnakes(): void {
+  private interpolateRemoteSnakes(dt: number): void {
     if (this.snapshotBuffer.length === 0) return;
 
-    const renderTime = performance.now() - this.INTERP_DELAY_MS;
+    // Advance continuous client render clock by exact frame time
+    const frameMs = Math.min(50, dt * 1000);
+    this.clientRenderTime += frameMs;
+
+    // Gently synchronize client render clock with latest snapshot timeline
+    const latestSnap = this.snapshotBuffer[this.snapshotBuffer.length - 1];
+    const targetRenderTime = latestSnap.time - this.INTERP_DELAY_MS;
+    const clockDiff = targetRenderTime - this.clientRenderTime;
+
+    if (Math.abs(clockDiff) > 160) {
+      this.clientRenderTime = targetRenderTime;
+    } else if (clockDiff > 20) {
+      this.clientRenderTime += clockDiff * 0.08;
+    } else if (clockDiff < -20) {
+      this.clientRenderTime += clockDiff * 0.08;
+    }
+
+    const renderTime = this.clientRenderTime;
 
     let prevSnap: WorldSnapshot | null = null;
     let nextSnap: WorldSnapshot | null = null;
@@ -964,6 +1000,38 @@ export class GameEngine {
     }
   }
 
+  /**
+   * Optimistic Client Food Consumption: Eats food immediately with 0ms delay.
+   * Completely eliminates the visual delay where snakes slide past pellets before counting.
+   */
+  private checkLocalPlayerFood(): void {
+    if (!this.playerSnake || this.playerSnake.isDead) return;
+
+    const head = this.playerSnake.position;
+    const hasMagnet = this.playerSnake.hasPowerUp('magnet');
+    const naturalSuction = GAME_CONFIG.EAT_MAGNET_RADIUS_BASE + this.playerSnake.radius * 2.8;
+    const magnetRadius = hasMagnet ? naturalSuction * 2.8 + 140 : naturalSuction;
+    const eatRadius = this.playerSnake.radius * 1.35 + 8;
+
+    const nearbyItems = this.foodManager.spatialGrid.queryRadius(head.x, head.y, magnetRadius);
+
+    for (let i = 0; i < nearbyItems.length; i++) {
+      const food = nearbyItems[i].data;
+      if (!food) continue;
+
+      const dx = food.position.x - head.x;
+      const dy = food.position.y - head.y;
+      const distSq = dx * dx + dy * dy;
+      const totalEatRadius = eatRadius + food.radius;
+
+      if (distSq <= totalEatRadius * totalEatRadius) {
+        this.playerSnake.eatFood(food.value);
+        this.foodManager.remove(food.id);
+        soundManager.playEat();
+      }
+    }
+  }
+
   private update(dt: number, deltaRatio: number): void {
     if (this.isOnline) {
       // 1. Client prediction for local player (120 FPS buttery-smooth response)
@@ -971,6 +1039,9 @@ export class GameEngine {
         this.networkClient?.sendInput(this.playerSnake.targetAngle, this.playerSnake.isBoosting);
         this.playerSnake.update(deltaRatio);
         this.camera.setTarget(this.playerSnake.position);
+
+        // Optimistic 0ms instant food eating for local player
+        this.checkLocalPlayerFood();
       } else if (this.isSpectating && !this.camera.isFreeCam) {
         const target = this.getSpectateTarget();
         if (target && !target.isDead) {
@@ -986,7 +1057,7 @@ export class GameEngine {
 
       // 2. Snapshot Interpolation for all remote snakes (Host snake, other players, bots)
       // Glides sub-pixel smooth at 120 FPS with 0 vibration!
-      this.interpolateRemoteSnakes();
+      this.interpolateRemoteSnakes(dt);
 
       this.foodManager.update(deltaRatio);
       if (this.settings.particles) {

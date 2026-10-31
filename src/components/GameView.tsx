@@ -585,7 +585,7 @@ export const GameView: React.FC = () => {
     [settings.playerName, settings.selectedSkinId, addNotification, handleReturnToMenu]
   );
 
-  // Launch Player-Hosted Online Arena via Cloudflare PartyKit Edge
+  // Launch Player-Hosted Online Arena (Path B: Host-Authoritative Simulation)
   const handleLaunchOnlineRoom = useCallback(
     async (
       mode: 'public' | 'private',
@@ -598,50 +598,28 @@ export const GameView: React.FC = () => {
 
       try {
         const partyHostAddress = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
-        const guest = new PartyGuest();
+        const host = new PartyHost(roomCode);
 
-        guest.onPlayerJoined = (name) => {
-          addNotification('join', 'entered the arena!', name);
-        };
-        guest.onPlayerLeft = (name) => {
-          addNotification('leave', 'left the arena.', name);
-        };
-        guest.onRoomClosed = (msg) => {
-          alert(msg);
-          handleReturnToMenu();
-        };
-        guest.onError = (msg) => {
-          alert(msg);
-          handleReturnToMenu();
-        };
-
-        await guest.connect(
+        await host.connect(
           partyHostAddress,
-          roomCode,
+          mode === 'public',
+          roomName,
           settings.playerName || 'Host',
-          settings.selectedSkinId || 'emerald-dragon',
-          false,
-          {
-            id: roomCode,
-            name: roomName,
-            isPublic: mode === 'public',
-            hostName: settings.playerName || 'Host',
-            difficulty: config.botDifficulty,
-            snakesCount: config.botCount,
-          }
+          config.botDifficulty,
+          config.botCount
         );
 
         engineRef.current.camera.resetManualZoom();
         setSessionConfig(config);
         setGameState('playing');
+        engineRef.current.start(settings.playerName, settings.selectedSkinId, config);
+        engineRef.current.attachPartyHost(host);
 
         const displayId = mode === 'private' ? `Private [${roomCode}]` : roomName;
-        setOnlineServerInfo({ roomId: displayId, ping: guest.ping });
-        guest.onPing = (ping) => {
+        setOnlineServerInfo({ roomId: displayId, ping: host.ping });
+        host.onPing = (ping) => {
           setOnlineServerInfo((prev) => (prev ? { ...prev, ping } : { roomId: displayId, ping }));
         };
-
-        engineRef.current.startOnlineSession(guest as any, false);
 
         addNotification('info', `Arena hosted on Edge (${mode === 'private' ? `Code: ${roomCode}` : 'Public'}).`);
       } catch (err) {
@@ -650,7 +628,7 @@ export const GameView: React.FC = () => {
         setGameState('menu');
       }
     },
-    [settings.playerName, settings.selectedSkinId, addNotification, handleReturnToMenu]
+    [settings.playerName, settings.selectedSkinId, addNotification]
   );
 
   return (

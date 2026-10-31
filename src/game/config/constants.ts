@@ -13,8 +13,8 @@ export const GAME_CONFIG = {
   SEGMENT_DISTANCE: 5.8, // Distance between body segments
   BASE_SPEED: 2.85, // Authentic Slither/Worm.io base forward velocity
   BOOST_SPEED_MULTIPLIER: 1.85, // Velocity when boosting (approx 5.28)
-  BASE_TURN_SPEED: 0.075, // Radians per frame turn rate
-  MIN_TURN_SPEED: 0.035, // Turn rate at maximum size
+  BASE_TURN_SPEED: 0.11, // Radians per frame turn rate (snappy, agile steering)
+  MIN_TURN_SPEED: 0.05, // Turn rate at maximum size
   
   // Growth & Mass (Standard Slither Standards)
   BASE_MASS: 50,
@@ -43,9 +43,9 @@ export const GAME_CONFIG = {
 
   // Collision Detection
   SPATIAL_GRID_CELL_SIZE: 160,
-  HEAD_COLLISION_RADIUS_FACTOR: 0.85,
-  BODY_COLLISION_RADIUS_FACTOR: 0.9,
-  EAT_MAGNET_RADIUS_BASE: 25,
+  HEAD_COLLISION_RADIUS_FACTOR: 0.65, // Tight, fair lethal nose collision (no phantom deaths)
+  BODY_COLLISION_RADIUS_FACTOR: 0.72, // Forgiving body scale collision (rewards precision grazing)
+  EAT_MAGNET_RADIUS_BASE: 28,
 
   // Power-Up Durations (milliseconds)
   MAGNET_DURATION: 12000,
