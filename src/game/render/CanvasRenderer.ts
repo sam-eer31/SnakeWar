@@ -89,23 +89,31 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  // Draw glowing food orbs
+  // Draw glowing food orbs (spatial grid query + high-performance glossy rendering)
   drawFood(foodManager: FoodManager, camera: Camera): void {
     const ctx = this.ctx;
     const enableGlow = this.settings.glowEffects;
 
-    for (const food of foodManager.foodItems.values()) {
+    const halfW = (camera.viewportWidth / 2) / camera.zoom + 60;
+    const halfH = (camera.viewportHeight / 2) / camera.zoom + 60;
+    const viewRadius = Math.hypot(halfW, halfH);
+
+    // Query spatial grid instead of looping 2500 map items
+    const nearby = foodManager.spatialGrid.queryRadius(camera.position.x, camera.position.y, viewRadius);
+
+    for (let i = 0; i < nearby.length; i++) {
+      const food = nearby[i].data as FoodItem;
+      if (!food) continue;
       if (!camera.isInView(food.position.x, food.position.y, food.radius * 2)) continue;
 
       const screen = camera.worldToScreen(food.position.x, food.position.y);
       const r = Math.max(2, food.radius * camera.zoom);
 
-      ctx.save();
-
       if (food.type === 'super') {
-        // Super food: rotating pulsing crystal star
+        // Super food: pulsing star
+        ctx.save();
         if (enableGlow) {
-          ctx.shadowBlur = 15;
+          ctx.shadowBlur = 14;
           ctx.shadowColor = '#ffd700';
         }
 
@@ -116,22 +124,22 @@ export class CanvasRenderer {
 
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(screen.x, screen.y, r * 0.6, 0, Math.PI * 2);
+        ctx.arc(screen.x, screen.y, r * 0.55, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       } else {
-        // Regular or boost food with radial gradient
-        const grad = ctx.createRadialGradient(screen.x, screen.y, 0, screen.x, screen.y, r);
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.4, food.color);
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-
-        ctx.fillStyle = grad;
+        // Authentic Slither.io glossy orb: vibrant sphere with shiny highlight
+        ctx.fillStyle = food.color;
         ctx.beginPath();
         ctx.arc(screen.x, screen.y, r, 0, Math.PI * 2);
         ctx.fill();
-      }
 
-      ctx.restore();
+        // Glossy core reflection (avoids expensive createRadialGradient)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.beginPath();
+        ctx.arc(screen.x - r * 0.28, screen.y - r * 0.28, r * 0.36, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -174,6 +182,31 @@ export class CanvasRenderer {
     drawIllustratedSnake(this.ctx, snake, camera, { enableGlow: this.settings.glowEffects });
   }
 
+  /**
+   * Fast viewport culling: returns true if any part of the snake is visible on screen.
+   */
+  private isSnakeInView(snake: Snake, camera: Camera): boolean {
+    const headMargin = snake.radius * 2.5 + 60;
+    // Fast path: head is near or inside the screen
+    if (camera.isInView(snake.position.x, snake.position.y, headMargin)) {
+      return true;
+    }
+    // Broadphase: is the snake's entire reach completely off-screen?
+    const maxReach = snake.segments.length * GAME_CONFIG.SEGMENT_DISTANCE + headMargin;
+    if (!camera.isInView(snake.position.x, snake.position.y, maxReach)) {
+      return false;
+    }
+    // Check if any segment of long snake touches the viewport
+    const step = Math.max(1, Math.floor(snake.segments.length / 8));
+    for (let i = 0; i < snake.segments.length; i += step) {
+      const seg = snake.segments[i];
+      if (camera.isInView(seg.x, seg.y, seg.radius * 2 + 30)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Draw complete scene
   renderScene(
     camera: Camera,
@@ -201,16 +234,20 @@ export class CanvasRenderer {
     this.drawFood(foodManager, camera);
     this.drawPowerUps(powerUps, camera);
 
-    // Draw bots first
+    // Draw bots first (with camera viewport culling)
     for (const snake of allSnakes) {
       if (snake.isBot && !snake.isDead) {
-        this.drawSnake(snake, camera);
+        if (this.isSnakeInView(snake, camera)) {
+          this.drawSnake(snake, camera);
+        }
       }
     }
 
     // Draw player on top
     if (playerSnake && !playerSnake.isDead) {
-      this.drawSnake(playerSnake, camera);
+      if (this.isSnakeInView(playerSnake, camera)) {
+        this.drawSnake(playerSnake, camera);
+      }
     }
 
     // Draw particles

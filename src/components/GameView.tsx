@@ -171,6 +171,7 @@ export const GameView: React.FC = () => {
       if (gameState === 'playing') {
         if (e.button === 0 || e.button === 2) {
           engineRef.current.setPlayerBoosting(true);
+          setIsBoosting(true);
         }
       } else if (gameState === 'spectating') {
         isDraggingRef.current = true;
@@ -183,6 +184,7 @@ export const GameView: React.FC = () => {
 
       if (gameState === 'playing') {
         engineRef.current.setPlayerBoosting(false);
+        setIsBoosting(false);
       } else if (gameState === 'spectating') {
         isDraggingRef.current = false;
       }
@@ -208,6 +210,7 @@ export const GameView: React.FC = () => {
       if (gameState === 'playing') {
         if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
           engineRef.current.setPlayerBoosting(true);
+          setIsBoosting(true);
         }
 
         // Keyboard steering support (Arrow keys / WASD)
@@ -262,6 +265,7 @@ export const GameView: React.FC = () => {
       if (gameState === 'playing') {
         if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
           engineRef.current.setPlayerBoosting(false);
+          setIsBoosting(false);
         }
       }
     };
@@ -615,7 +619,10 @@ export const GameView: React.FC = () => {
       {gameState === 'playing' && (
         <VirtualJoystick
           onMove={(angle) => engineRef.current?.setPlayerAngle(angle)}
-          onBoostChange={(boosting) => engineRef.current?.setPlayerBoosting(boosting)}
+          onBoostChange={(boosting) => {
+            engineRef.current?.setPlayerBoosting(boosting);
+            setIsBoosting(boosting);
+          }}
         />
       )}
 

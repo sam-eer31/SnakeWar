@@ -65,6 +65,7 @@ export interface FoodCluster {
   hasCorpsePellets: boolean;
   trailAngle: number;       // Principal direction of the corpse trail
   foodCount: number;
+  bestTargetPos?: Vector2D;
 }
 
 export interface SensorySnapshot {

@@ -205,39 +205,55 @@ export class TacticalBehaviors {
           };
         }
 
-        // Priority 2: Corpse pellets / feastTarget
+        let targetPoint: Vector2D | null = null;
+        let isCorpseVacuum = false;
+
         if (snapshot.foodCluster && snapshot.foodCluster.hasCorpsePellets) {
-          const cluster = snapshot.foodCluster;
-          const targetAngle = Math.atan2(cluster.centroid.y - head.y, cluster.centroid.x - head.x);
-          // Sprint along corpse trail to vacuum all mass!
-          return {
-            targetAngle,
-            targetPoint: cluster.centroid,
-            wantsBoost: canAffordBoost && cluster.nearestDist < 550,
-          };
+          targetPoint = snapshot.foodCluster.bestTargetPos || snapshot.foodCluster.centroid;
+          isCorpseVacuum = true;
+        } else if (feastTarget && head.dist(feastTarget) > 85) {
+          targetPoint = feastTarget;
+          isCorpseVacuum = true;
+        } else if (snapshot.foodCluster) {
+          targetPoint = snapshot.foodCluster.bestTargetPos || snapshot.foodCluster.centroid;
         }
 
-        if (feastTarget) {
-          const targetAngle = Math.atan2(feastTarget.y - head.y, feastTarget.x - head.x);
-          return {
-            targetAngle,
-            targetPoint: feastTarget,
-            wantsBoost: canAffordBoost && head.dist(feastTarget) < 550,
-          };
+        if (!targetPoint) {
+          return this.planWander(snake, macroTarget);
         }
 
-        // Priority 3: General food cluster
-        if (snapshot.foodCluster) {
-          const cluster = snapshot.foodCluster;
-          const targetAngle = Math.atan2(cluster.centroid.y - head.y, cluster.centroid.x - head.x);
-          return {
-            targetAngle,
-            targetPoint: cluster.centroid,
-            wantsBoost: false,
-          };
+        const toTarget = targetPoint.sub(head);
+        const dist = toTarget.mag();
+        let targetAngle = Math.atan2(toTarget.y, toTarget.x);
+
+        // Anti-Spin Orbital Gate:
+        // If target is inside the turn radius off to the side, do not hard-steer into it.
+        // Steer with a shallower sweep angle so the snake sweeps through the food rather than orbiting it.
+        const turnRate = Math.max(
+          GAME_CONFIG.MIN_TURN_SPEED,
+          GAME_CONFIG.BASE_TURN_SPEED * snake.turnSpeedMultiplier - (snake.radius / GAME_CONFIG.MAX_RADIUS) * 0.04
+        );
+        const currentSpeed = (snake.isBoosting || hasTurbo)
+          ? snake.speed * GAME_CONFIG.BOOST_SPEED_MULTIPLIER
+          : snake.speed;
+        const turnRadius = currentSpeed / turnRate;
+
+        let diff = targetAngle - currentAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+
+        if (dist < turnRadius * 1.45 && Math.abs(diff) > 0.6) {
+          const turnSign = Math.sign(diff) || 1;
+          targetAngle = currentAngle + turnSign * 0.35;
         }
 
-        return this.planWander(snake, macroTarget);
+        const wantsBoost = canAffordBoost && isCorpseVacuum && dist > 110 && dist < 550 && Math.abs(diff) < 0.7;
+
+        return {
+          targetAngle,
+          targetPoint,
+          wantsBoost,
+        };
       }
 
       // =======================================================================

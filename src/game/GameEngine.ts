@@ -3,7 +3,7 @@ import { Vector2D } from './core/Vector2D';
 import { GameLoop } from './core/GameLoop';
 import { Snake } from './entities/Snake';
 import { FoodManager } from './entities/FoodManager';
-import { PowerUp, PowerUpType, POWERUP_CONFIGS } from './entities/PowerUp';
+import { PowerUp, PowerUpType, POWERUP_CONFIGS, ALL_POWERUP_TYPES } from './entities/PowerUp';
 import { BotManager } from './ai/BotManager';
 import { ParticleSystem } from './render/ParticleSystem';
 import { CanvasRenderer } from './render/CanvasRenderer';
@@ -72,6 +72,8 @@ export class GameEngine {
   private nextPowerUpId: number = 1;
   private powerUpSpawnTimer: number = 0;
   private camTarget: Vector2D = new Vector2D(0, 0);
+  private uiUpdateTimer: number = 0;
+  private readonly UI_UPDATE_INTERVAL: number = 0.1; // 100ms (10 Hz throttle to eliminate React DOM reconciliation lag)
 
   // Callbacks for UI
   public onStatsUpdate?: (stats: PlayerStats) => void;
@@ -458,7 +460,7 @@ export class GameEngine {
   }
 
   private spawnInitialPowerUps(): void {
-    const types: PowerUpType[] = ['magnet', 'multiplier', 'turbo', 'ghost'];
+    const types = ALL_POWERUP_TYPES;
     for (let i = 0; i < GAME_CONFIG.POWERUP_COUNT; i++) {
       const type = types[i % types.length];
       const r = Math.sqrt(Math.random()) * (this.sessionConfig.arenaRadius - 300);
@@ -533,7 +535,7 @@ export class GameEngine {
       this.powerUpSpawnTimer += dt;
       if (this.powerUpSpawnTimer > 5 && this.powerUps.length < GAME_CONFIG.POWERUP_COUNT) {
         this.powerUpSpawnTimer = 0;
-        const types: PowerUpType[] = ['magnet', 'multiplier', 'turbo', 'ghost'];
+        const types = ALL_POWERUP_TYPES;
         const type = types[Math.floor(Math.random() * types.length)];
         const r = Math.sqrt(Math.random()) * (this.sessionConfig.arenaRadius - 300);
         const theta = Math.random() * Math.PI * 2;
@@ -646,8 +648,12 @@ export class GameEngine {
       this.particleSystem.update(dt, deltaRatio);
     }
 
-    // 9. Dispatch UI Updates (Leaderboard & Stats)
-    this.dispatchUIUpdates();
+    // 9. Dispatch UI Updates (Throttled to 10Hz to prevent React DOM reconciliation lag)
+    this.uiUpdateTimer += dt;
+    if (this.uiUpdateTimer >= this.UI_UPDATE_INTERVAL) {
+      this.uiUpdateTimer = 0;
+      this.dispatchUIUpdates();
+    }
   }
 
   // Food Eating & Magnetic Pull
@@ -690,8 +696,26 @@ export class GameEngine {
     }
   }
 
-  // Power-up Pickups
+  // Power-up Pickups & Magnetic Attraction
   private checkPowerUpInteractions(): void {
+    // 1. Magnetic pull towards snakes with active 'magnet' power-up
+    for (const snake of this.allSnakes) {
+      if (snake.isDead) continue;
+      if (!snake.hasPowerUp('magnet')) continue;
+
+      const head = snake.position;
+      const naturalSuction = GAME_CONFIG.EAT_MAGNET_RADIUS_BASE + snake.radius * 2.8;
+      const magnetRadius = naturalSuction * 2.8 + 160;
+
+      for (const p of this.powerUps) {
+        const dist = head.dist(p.position);
+        if (dist <= magnetRadius && dist > snake.radius + p.radius) {
+          p.attractTowards(head.x, head.y, 2.6);
+        }
+      }
+    }
+
+    // 2. Power-up collection
     for (let i = this.powerUps.length - 1; i >= 0; i--) {
       const p = this.powerUps[i];
 
@@ -701,16 +725,24 @@ export class GameEngine {
         const dist = snake.position.dist(p.position);
         if (dist <= snake.radius + p.radius) {
           // Collected!
-          snake.applyPowerUp(p.type, POWERUP_CONFIGS[p.type].duration);
+          if (p.type === 'growth') {
+            // Instant mass gain: 1,000 multiplied by active food multipliers (2x, 5x, or 10x)
+            const massGain = 1000 * snake.getFoodMultiplier();
+            snake.addMass(massGain);
+          } else {
+            snake.applyPowerUp(p.type, POWERUP_CONFIGS[p.type].duration);
+          }
+
           this.powerUps.splice(i, 1);
 
           if (!snake.isBot) {
             soundManager.playPowerUp();
-            this.camera.shake(6);
+            this.camera.shake(p.type === 'growth' ? 8 : 6);
           }
 
           if (this.settings.particles) {
-            this.particleSystem.emitBurst(p.position.x, p.position.y, POWERUP_CONFIGS[p.type].color, 25, 1.2);
+            const burstCount = p.type === 'growth' ? 35 : 25;
+            this.particleSystem.emitBurst(p.position.x, p.position.y, POWERUP_CONFIGS[p.type].color, burstCount, 1.2);
           }
           break;
         }
@@ -748,6 +780,16 @@ export class GameEngine {
         // If selfCollision session rule is enabled (Classic Snake mode), biting own body is lethal.
         if (other.id === snake.id && !this.sessionConfig.selfCollision) continue;
 
+        // Broadphase reach culling: skip segment checks if snakes are physically out of reach
+        if (other.id !== snake.id) {
+          const maxReach = other.segments.length * GAME_CONFIG.SEGMENT_DISTANCE + other.radius + headHitRadius + 40;
+          const dxH = head.x - other.position.x;
+          const dyH = head.y - other.position.y;
+          if (dxH * dxH + dyH * dyH > maxReach * maxReach) {
+            continue;
+          }
+        }
+
         // Skip collision with own head and first few segments when self-collision is enabled
         const segmentsToCheck = other.id === snake.id
           ? other.segments.slice(10) // Self-collision only for large snakes
@@ -774,6 +816,11 @@ export class GameEngine {
   private killSnake(victim: Snake, killer: Snake | null): void {
     if (victim.isDead) return;
     victim.isDead = true;
+
+    // Immediately dispatch UI update so death screen and final stats are instant
+    if (victim === this.playerSnake) {
+      this.dispatchUIUpdates();
+    }
 
     // Reward killer
     if (killer && killer.id !== victim.id) {
@@ -862,8 +909,7 @@ export class GameEngine {
       }
 
       const activePUs: { type: PowerUpType; remainingMs: number }[] = [];
-      const types: PowerUpType[] = ['magnet', 'multiplier', 'turbo', 'ghost'];
-      types.forEach((t) => {
+      ALL_POWERUP_TYPES.forEach((t) => {
         const rem = focusedSnake.getPowerUpRemaining(t);
         if (rem > 0) {
           activePUs.push({ type: t, remainingMs: rem });

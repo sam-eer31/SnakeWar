@@ -25,8 +25,8 @@ export const GAME_CONFIG = {
   
   // Camera (Authentic Slither.io Distance & Dynamic Zoom)
   CAMERA_SMOOTHING: 0.09,
-  BASE_ZOOM: 0.55,
-  MIN_ZOOM: 0.26,
+  BASE_ZOOM: 1.15,
+  MIN_ZOOM: 0.48,
 
   // Spawning & Population
   MAX_FOOD_COUNT: 2500,
@@ -50,6 +50,7 @@ export const GAME_CONFIG = {
   // Power-Up Durations (milliseconds)
   MAGNET_DURATION: 12000,
   MULTIPLIER_DURATION: 10000,
+  MULTIPLIER_5X_DURATION: 10000,
   SPEED_DURATION: 8000,
   GHOST_DURATION: 5000,
 } as const;

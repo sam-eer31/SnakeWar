@@ -20,13 +20,14 @@ export class BotUtilityEvaluator {
     snapshot: SensorySnapshot,
     currentState: BotState,
     stateTimer: number,
-    isKillerFeasting: boolean = false
+    isKillerFeasting: boolean = false,
+    isBreakingSpiral: boolean = false
   ): UtilityScores {
     const scores: Record<BotState, number> = {
-      WANDER: 20,
-      COLLECT_FOOD: 25,
-      HUNT: 15,
-      INTERCEPT: 10,
+      WANDER: isBreakingSpiral ? 95 : 20,
+      COLLECT_FOOD: isBreakingSpiral ? 0 : 25,
+      HUNT: isBreakingSpiral ? 0 : 15,
+      INTERCEPT: isBreakingSpiral ? 0 : 10,
       CIRCLE: 5,
       ESCAPE: 10,
       EVADE: 10,

@@ -95,9 +95,19 @@ export class Snake {
   }
 
   applyPowerUp(type: PowerUpType, duration: number): void {
+    if (duration <= 0) return;
     const now = performance.now();
-    const current = this.activePowerUps.get(type) || now;
-    this.activePowerUps.set(type, Math.max(now, current) + duration);
+    // Re-picking resets timer back to full duration
+    this.activePowerUps.set(type, now + duration);
+  }
+
+  getFoodMultiplier(): number {
+    const has2x = this.hasPowerUp('multiplier');
+    const has5x = this.hasPowerUp('multiplier_5x');
+    let mult = 1;
+    if (has2x) mult *= 2;
+    if (has5x) mult *= 5;
+    return mult;
   }
 
   setTargetDirection(targetX: number, targetY: number): void {
@@ -110,10 +120,8 @@ export class Snake {
     this.targetAngle = angle;
   }
 
-  eatFood(value: number): void {
-    const multiplier = this.hasPowerUp('multiplier') ? 2 : 1;
-    const gainedMass = value * multiplier;
-    this.mass += gainedMass;
+  addMass(amount: number): void {
+    this.mass += amount;
     this.score = Math.floor(this.mass);
 
     // Standard Slither.io sub-linear growth formulas
@@ -126,6 +134,11 @@ export class Snake {
       GAME_CONFIG.MAX_RADIUS,
       GAME_CONFIG.INITIAL_RADIUS + Math.pow(massDelta, 0.36) * 0.9
     );
+  }
+
+  eatFood(value: number): void {
+    const gainedMass = value * this.getFoodMultiplier();
+    this.addMass(gainedMass);
   }
 
   update(deltaRatio: number, onDropPellet?: (x: number, y: number, color: string) => void): void {

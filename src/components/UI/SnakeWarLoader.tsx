@@ -26,6 +26,8 @@ const ASSETS_TO_PRELOAD = [
   '/assets/snakes/cyber/tail.webp',
   '/assets/powerups/magnet.webp',
   '/assets/powerups/multiplier.webp',
+  '/assets/powerups/multiplier_5x.webp',
+  '/assets/powerups/growth.webp',
   '/assets/powerups/turbo.webp',
   '/assets/powerups/ghost.webp',
 ];

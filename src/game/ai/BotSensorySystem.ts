@@ -372,6 +372,17 @@ export class BotSensorySystem {
 
     if (items.length === 0) return null;
 
+    // Physical turn radius calculation for orbital trap prevention
+    const baseTurn = GAME_CONFIG.BASE_TURN_SPEED * snake.turnSpeedMultiplier;
+    const turnRate = Math.max(
+      GAME_CONFIG.MIN_TURN_SPEED,
+      baseTurn - (snake.radius / GAME_CONFIG.MAX_RADIUS) * 0.04
+    );
+    const currentSpeed = snake.isBoosting
+      ? snake.speed * GAME_CONFIG.BOOST_SPEED_MULTIPLIER
+      : snake.speed;
+    const minTurnRadius = currentSpeed / turnRate;
+
     let totalMass = 0;
     let corpseMass = 0;
     let weightedX = 0;
@@ -379,6 +390,10 @@ export class BotSensorySystem {
     let totalEffectiveWeight = 0;
     let nearestDist = Infinity;
     let hasCorpse = false;
+
+    // Reachable individual food target selection
+    let bestTargetScore = -Infinity;
+    let bestTargetPos: Vector2D | null = null;
 
     // For calculating principal corpse trail axis
     let corpseCount = 0;
@@ -392,32 +407,31 @@ export class BotSensorySystem {
       const d = head.dist(food.position);
       if (d > scanRadius) continue;
 
+      let angleToFood = Math.atan2(food.position.y - head.y, food.position.x - head.x);
+      let diffA = Math.abs(snake.angle - angleToFood);
+      while (diffA > Math.PI) diffA = Math.PI * 2 - diffA;
+
       // ANTI-SPIRAL / IMPOSSIBLE TURN RADIUS FILTER:
-      // If food is inside snake's minimum physical turn diameter or wrapped by its own body segments,
-      // the snake cannot turn sharp enough to eat it without completing loops.
-      if (d < 110 && snake.segments.length > 6) {
-        let diffA = Math.abs(snake.angle - Math.atan2(food.position.y - head.y, food.position.x - head.x));
-        while (diffA > Math.PI) diffA = Math.PI * 2 - diffA;
+      // If food is inside snake's minimum physical turn diameter and off to the side,
+      // the snake cannot turn sharp enough to eat it directly without entering an endless orbit.
+      const isInsideTurnPocket = (d < minTurnRadius * 1.35 && diffA > 0.62) || (d < 45 && diffA > 0.45);
 
-        // If food is located perpendicular to side (40 deg to 145 deg) and closer than turn clearance (75px)
-        if (diffA > 0.65 && diffA < 2.5 && d < 75) {
-          continue; // Filter out unreachable food at center of turn
-        }
-
-        // If food is enclosed inside snake's body segments (spiral interior)
-        let isInsideOwnCoil = false;
+      // Check if food is enclosed inside snake's own coiled body segments
+      let isInsideOwnCoil = false;
+      if (snake.segments.length > 8 && d < 180) {
         const segStep = Math.max(1, Math.floor(snake.segments.length / 10));
         for (let s = 6; s < snake.segments.length; s += segStep) {
           const seg = snake.segments[s];
           const distSegSq = (seg.x - food.position.x) ** 2 + (seg.y - food.position.y) ** 2;
-          if (distSegSq < 48 * 48) {
+          if (distSegSq < 52 * 52) {
             isInsideOwnCoil = true;
             break;
           }
         }
-        if (isInsideOwnCoil) {
-          continue; // Filter out food trapped in own coils
-        }
+      }
+
+      if (isInsideOwnCoil) {
+        continue; // Completely ignore pellets trapped inside own body coils
       }
 
       if (d < nearestDist) {
@@ -427,29 +441,55 @@ export class BotSensorySystem {
       // Corpse and super food carry massive gravity
       const isCorpse = food.type === 'corpse';
       const isSuper = food.type === 'super';
-      const weightMultiplier = isCorpse ? 12.0 : isSuper ? 8.0 : 1.5;
+      const weightMultiplier = isCorpse ? 14.0 : isSuper ? 8.0 : 1.5;
 
-      const effectiveVal = food.value * weightMultiplier;
-      totalMass += food.value;
-      totalEffectiveWeight += effectiveVal;
-      weightedX += food.position.x * effectiveVal;
-      weightedY += food.position.y * effectiveVal;
+      // Only reachable items outside the tight side-pocket contribute to the steering centroid
+      if (!isInsideTurnPocket) {
+        const effectiveVal = food.value * weightMultiplier;
+        totalMass += food.value;
+        totalEffectiveWeight += effectiveVal;
+        weightedX += food.position.x * effectiveVal;
+        weightedY += food.position.y * effectiveVal;
 
-      if (isCorpse) {
-        hasCorpse = true;
-        corpseMass += food.value;
-        corpseCount++;
-        if (corpseCount === 1) {
-          corpseX1 = food.position.x;
-          corpseY1 = food.position.y;
-        } else {
-          corpseX2 = food.position.x;
-          corpseY2 = food.position.y;
+        if (isCorpse) {
+          hasCorpse = true;
+          corpseMass += food.value;
+          corpseCount++;
+          if (corpseCount === 1) {
+            corpseX1 = food.position.x;
+            corpseY1 = food.position.y;
+          } else {
+            corpseX2 = food.position.x;
+            corpseY2 = food.position.y;
+          }
+        }
+
+        // Score reachable candidate target
+        const forwardAlignment = 0.4 + 0.6 * Math.cos(diffA);
+        const distScore = 1.0 / (d + 40);
+        const candidateScore = food.value * weightMultiplier * forwardAlignment * distScore;
+        if (candidateScore > bestTargetScore) {
+          bestTargetScore = candidateScore;
+          bestTargetPos = food.position;
         }
       }
     }
 
-    if (totalEffectiveWeight === 0) return null;
+    if (totalEffectiveWeight === 0) {
+      // If every detected food pellet was stuck in the tight turn pocket,
+      // project a sweep-through target point forward so the bot breaks out and circles around cleanly
+      const sweepPoint = head.add(Vector2D.fromAngle(snake.angle, Math.max(120, minTurnRadius * 2.0)));
+      return {
+        centroid: sweepPoint,
+        bestTargetPos: sweepPoint,
+        totalMass: 10,
+        corpseMass: 0,
+        nearestDist: minTurnRadius,
+        hasCorpsePellets: false,
+        trailAngle: snake.angle,
+        foodCount: items.length,
+      };
+    }
 
     const centroid = new Vector2D(
       weightedX / totalEffectiveWeight,
@@ -463,6 +503,7 @@ export class BotSensorySystem {
 
     return {
       centroid,
+      bestTargetPos: bestTargetPos || centroid,
       totalMass,
       corpseMass,
       nearestDist,

@@ -180,19 +180,18 @@ export class BotBrain {
     this.lastAngle = this.snake.angle;
 
     this.spinAnchorTimer += dt;
-    if (this.spinAnchorTimer >= 1.4) {
+    if (this.spinAnchorTimer >= 2.0) {
       const distFromAnchor = this.snake.position.dist(this.spinAnchorPos);
       const totalTurns = Math.abs(this.cumulativeTurnAngle);
 
-      // If snake turned > ~320 degrees within 1.4s with net displacement < 180px
-      // and isn't intentionally coiling living prey in CIRCLE state:
+      // If snake turned > 270 degrees in either direction within 2.0s with displacement < 220px:
       const isCoilingLivingPrey = this.state === 'CIRCLE' && this.lastSnapshot?.bestPrey != null;
-      if (totalTurns > Math.PI * 1.8 && distFromAnchor < 180 && !isCoilingLivingPrey) {
+      if (totalTurns > Math.PI * 1.5 && distFromAnchor < 220 && !isCoilingLivingPrey) {
         this.isBreakingSpiral = true;
-        this.spiralBreakoutTimer = 1.5; // Break out for 1.5 seconds
+        this.spiralBreakoutTimer = 2.2; // Break out for 2.2 seconds
         // Turn sharply outward away from current curvature to unwind loop
         const turnSign = Math.sign(this.cumulativeTurnAngle) || 1;
-        this.spiralBreakoutAngle = this.snake.angle - turnSign * (Math.PI * 0.65);
+        this.spiralBreakoutAngle = this.snake.angle - turnSign * (Math.PI * 0.7);
         // Clear any stuck feast lock
         this.feastTarget = null;
         this.isKillerFeasting = false;
@@ -290,7 +289,8 @@ export class BotBrain {
         snapshot,
         this.state,
         this.stateTimer,
-        this.isKillerFeasting
+        this.isKillerFeasting,
+        this.isBreakingSpiral
       );
       this.lastUtilityScores = utilityScores;
 

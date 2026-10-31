@@ -19,6 +19,7 @@ export class ContextSteeringEngine {
   private danger: Float32Array = new Float32Array(NUM_SLOTS);
   private interest: Float32Array = new Float32Array(NUM_SLOTS);
   private slotMinHit: Float32Array = new Float32Array(NUM_SLOTS);
+  private slotMinHitSelf: Float32Array = new Float32Array(NUM_SLOTS);
   private slotAngles: number[] = [];
   private cosAngles: Float32Array = new Float32Array(NUM_SLOTS);
   private sinAngles: Float32Array = new Float32Array(NUM_SLOTS);
@@ -51,6 +52,7 @@ export class ContextSteeringEngine {
     this.danger.fill(0);
     this.interest.fill(0);
     this.slotMinHit.fill(Infinity);
+    this.slotMinHitSelf.fill(Infinity);
 
     const arenaRadius = foodManager.arenaRadius || GAME_CONFIG.ARENA_RADIUS;
 
@@ -121,24 +123,27 @@ export class ContextSteeringEngine {
     if (!hasGhost) {
       for (const other of otherSnakes) {
         if (other.isDead || other.hasSpawnProtection) continue;
-        if (other.id === snake.id && !selfCollision) continue;
+        const isSelf = other.id === snake.id;
+        if (isSelf && (!selfCollision && (state === 'CIRCLE' || snake.segments.length < 18))) continue;
 
         // Bounding reach check: skip snake if entirely outside view
-        if (other.id !== snake.id) {
+        if (!isSelf) {
           const maxReach = Math.min(3200, other.segments.length * 11 + 100);
           if (head.dist(other.position) > viewDist + maxReach) continue;
         }
 
-        // Self-collision skip: ignore neck segments so turning doesn't hit own neck
-        const selfSkip = Math.max(16, Math.floor((snake.radius * 2.8) / GAME_CONFIG.SEGMENT_DISTANCE));
-        const segs = other.id === snake.id ? other.segments.slice(selfSkip) : other.segments;
+        // Self-collision skip: ignore neck segments so normal turning doesn't flag own body
+        const selfSkip = isSelf
+          ? Math.max(18, Math.floor((snake.radius * 3.6) / GAME_CONFIG.SEGMENT_DISTANCE))
+          : 0;
+        const segs = isSelf ? other.segments.slice(selfSkip) : other.segments;
 
         // Subsample segments based on distance for silky 60fps performance
         const otherDist = head.dist(other.position);
         const step = otherDist > 450 ? (tier === 'hard' ? 2 : 3) : 1;
 
         const tierBaseMargin = tier === 'hard' ? 14 : tier === 'medium' ? 20 : 26;
-        const safeDist = snake.radius + (other.radius || snake.radius) + tierBaseMargin;
+        const safeDist = snake.radius + (other.radius || snake.radius) + (isSelf ? 10 : tierBaseMargin);
         const safeDistSq = safeDist * safeDist;
         const checkRangeSq = (lookAhead + safeDist) * (lookAhead + safeDist);
 
@@ -150,7 +155,7 @@ export class ContextSteeringEngine {
           if (distSq > checkRangeSq) continue;
 
           const directDist = Math.sqrt(distSq);
-          if (directDist < minThreatDist && other.id !== snake.id) {
+          if (directDist < minThreatDist && !isSelf) {
             minThreatDist = directDist;
           }
 
@@ -165,8 +170,15 @@ export class ContextSteeringEngine {
             // Ray intersects the capsule around this segment
             const corridorHalfWidth = Math.sqrt(Math.max(0, safeDistSq - perpDistSq));
             const hitDist = Math.max(0, proj - corridorHalfWidth);
-            if (hitDist < this.slotMinHit[i]) {
-              this.slotMinHit[i] = hitDist;
+
+            if (isSelf && !selfCollision) {
+              if (hitDist < this.slotMinHitSelf[i]) {
+                this.slotMinHitSelf[i] = hitDist;
+              }
+            } else {
+              if (hitDist < this.slotMinHit[i]) {
+                this.slotMinHit[i] = hitDist;
+              }
             }
           }
         }
@@ -182,6 +194,13 @@ export class ContextSteeringEngine {
             const dFactor = Math.pow(Math.max(0, 1 - hitD / lookAhead), 1.5);
             this.danger[i] = Math.max(this.danger[i], dFactor);
           }
+        }
+
+        // Soft avoidance for own tail / body: prevents self-reinforcing donut loops
+        const hitSelf = this.slotMinHitSelf[i];
+        if (hitSelf < lookAhead * 0.75 && state !== 'CIRCLE') {
+          const selfFactor = Math.pow(Math.max(0, 1 - hitSelf / (lookAhead * 0.75)), 1.3) * 0.65;
+          this.danger[i] = Math.max(this.danger[i], selfFactor);
         }
       }
 

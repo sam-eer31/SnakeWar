@@ -1,4 +1,4 @@
-import { PowerUpType, POWERUP_CONFIGS } from '../entities/PowerUp';
+import { PowerUpType, POWERUP_CONFIGS, ALL_POWERUP_TYPES } from '../entities/PowerUp';
 
 // In-memory cache for preloaded power-up textures
 const powerUpImageCache: Map<PowerUpType, HTMLImageElement> = new Map();
@@ -23,8 +23,7 @@ export function getPowerUpImage(type: PowerUpType): HTMLImageElement | null {
  */
 export function preheatPowerUpTextures(): void {
   if (typeof window === 'undefined') return;
-  const types: PowerUpType[] = ['magnet', 'multiplier', 'turbo', 'ghost'];
-  for (const t of types) {
+  for (const t of ALL_POWERUP_TYPES) {
     getPowerUpImage(t);
   }
 }

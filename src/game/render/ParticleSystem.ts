@@ -93,14 +93,13 @@ export class ParticleSystem {
       const screen = camera.worldToScreen(p.position.x, p.position.y);
       const r = p.radius * camera.zoom;
 
-      ctx.save();
       ctx.globalAlpha = p.alpha;
       ctx.fillStyle = p.color;
       ctx.beginPath();
       ctx.arc(screen.x, screen.y, Math.max(1, r), 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
     }
+    ctx.globalAlpha = 1.0;
   }
 }
 
