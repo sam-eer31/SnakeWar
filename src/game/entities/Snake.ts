@@ -51,6 +51,9 @@ export class Snake {
   // Wiggle effect for realistic slither
   public wiggleTimer: number = Math.random() * 100;
 
+  // Realistic forked tongue flick timer
+  public tongueTimer: number = Math.random() * 3.5;
+
   constructor(
     id: string,
     name: string,
@@ -213,6 +216,12 @@ export class Snake {
     const waveOffset = Math.sin(this.wiggleTimer) * 0.04;
     const moveAngle = this.angle + waveOffset;
 
+    // Advance tongue flick animation timer (flicks every 3-4s for ~0.45s)
+    this.tongueTimer += (deltaRatio / 60);
+    if (this.tongueTimer > 4.2) {
+      this.tongueTimer = Math.random() * 0.8;
+    }
+
     const velocity = Vector2D.fromAngle(moveAngle, this.speed * deltaRatio);
     this.position.addMut(velocity);
 
@@ -234,7 +243,8 @@ export class Snake {
     let prevX = this.position.x;
     let prevY = this.position.y;
 
-    for (let i = 0; i < this.segments.length; i++) {
+    const segCount = this.segments.length;
+    for (let i = 0; i < segCount; i++) {
       const seg = this.segments[i];
       const dx = seg.x - prevX;
       const dy = seg.y - prevY;
@@ -249,9 +259,20 @@ export class Snake {
       // Segment angle points to previous segment
       seg.angle = Math.atan2(prevY - seg.y, prevX - seg.x);
 
-      // Segment radius tapers slightly towards tail
-      const taper = 1 - (i / Math.max(1, this.segments.length)) * 0.35;
-      seg.radius = Math.max(3, this.radius * taper);
+      // Anatomically realistic serpentine taper profile:
+      // - Neck (first 6%): subtle narrowing (0.86x) right behind the broad viper skull
+      // - Body (6% to 60%): full muscular girth (1.0x)
+      // - Tail (60% to 100%): smooth cosine curve tapering down to an elegant fine tip (0.12x)
+      const u = segCount > 1 ? i / (segCount - 1) : 0;
+      let taper = 1.0;
+      if (u < 0.06) {
+        taper = 0.86 + 0.14 * (u / 0.06);
+      } else if (u > 0.60) {
+        const p = (u - 0.60) / 0.40;
+        const cosP = Math.cos(p * Math.PI * 0.5);
+        taper = 0.12 + 0.88 * (cosP * cosP);
+      }
+      seg.radius = Math.max(1.8, this.radius * taper);
 
       prevX = seg.x;
       prevY = seg.y;
@@ -271,32 +292,43 @@ export class Snake {
     }
   }
 
-  // Get eye positions for expressive head rendering
+  // Get current forked tongue animation state
+  getTongueState(): { isOut: boolean; extension: number; flutter: number } {
+    if (this.tongueTimer >= 3.0 && this.tongueTimer <= 3.55) {
+      const t = (this.tongueTimer - 3.0) / 0.55; // 0 to 1
+      const extension = Math.sin(t * Math.PI); // Smooth out-and-in extension curve
+      const flutter = Math.sin(t * Math.PI * 6); // Rapid 3-cycle vibration
+      return { isOut: true, extension, flutter };
+    }
+    return { isOut: false, extension: 0, flutter: 0 };
+  }
+
+  // Get eye positions for expressive head rendering (backward compatible)
   getEyePositions(): {
     leftEye: { x: number; y: number; pupilX: number; pupilY: number };
     rightEye: { x: number; y: number; pupilX: number; pupilY: number };
   } {
-    const eyeForwardOffset = this.radius * 0.55;
-    const eyeSideOffset = this.radius * 0.58;
-    const eyeRadius = this.radius * 0.28;
+    const eyeForwardOffset = this.radius * 0.45;
+    const eyeSideOffset = this.radius * 0.66;
+    const eyeRadius = this.radius * 0.25;
 
     const cos = Math.cos(this.angle);
     const sin = Math.sin(this.angle);
     const perpCos = -sin;
     const perpSin = cos;
 
-    // Left eye base
+    // Left eye base (lateral left)
     const lx = this.position.x + cos * eyeForwardOffset + perpCos * eyeSideOffset;
     const ly = this.position.y + sin * eyeForwardOffset + perpSin * eyeSideOffset;
 
-    // Right eye base
+    // Right eye base (lateral right)
     const rx = this.position.x + cos * eyeForwardOffset - perpCos * eyeSideOffset;
     const ry = this.position.y + sin * eyeForwardOffset - perpSin * eyeSideOffset;
 
     // Pupils look slightly ahead in direction of movement
-    const pupilDist = eyeRadius * 0.35;
-    const pupilXOffset = Math.cos(this.angle) * pupilDist;
-    const pupilYOffset = Math.sin(this.angle) * pupilDist;
+    const pupilDist = eyeRadius * 0.25;
+    const pupilXOffset = cos * pupilDist;
+    const pupilYOffset = sin * pupilDist;
 
     return {
       leftEye: {

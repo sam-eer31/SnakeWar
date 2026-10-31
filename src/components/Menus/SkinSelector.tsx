@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { SKINS, SnakeSkin } from '@/game/config/skins';
+import { drawIllustratedSnakePreview } from '@/game/render/IllustratedSnakeRenderer';
 
 interface SkinSelectorProps {
   selectedSkinId: string;
@@ -9,7 +10,7 @@ interface SkinSelectorProps {
   onClose: () => void;
 }
 
-// Mini preview canvas for each skin
+// Mini preview canvas for each skin with hand-drawn illustrated style
 const SkinCanvasPreview: React.FC<{ skin: SnakeSkin }> = ({ skin }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -23,56 +24,8 @@ const SkinCanvasPreview: React.FC<{ skin: SnakeSkin }> = ({ skin }) => {
     let t = 0;
 
     const render = () => {
-      t += 0.05;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
-      const segmentsCount = 12;
-      const radius = 10;
-
-      // Draw slithering snake
-      for (let i = segmentsCount - 1; i >= 0; i--) {
-        const segDist = i * 11;
-        const wave = Math.sin(t - i * 0.4) * 12;
-        const x = cx - segDist + 40;
-        const y = cy + wave;
-
-        const color = skin.bodyColors[i % skin.bodyColors.length];
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x, y, radius * (1 - (i / segmentsCount) * 0.3), 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Head
-      const headWave = Math.sin(t) * 12;
-      const headX = cx + 40;
-      const headY = cy + headWave;
-
-      ctx.fillStyle = skin.headColor;
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = skin.glowColor;
-      ctx.beginPath();
-      ctx.arc(headX, headY, radius * 1.15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Eyes
-      const eyeR = radius * 0.35;
-      ctx.fillStyle = skin.eyeColor;
-      ctx.beginPath();
-      ctx.arc(headX + 4, headY - 4, eyeR, 0, Math.PI * 2);
-      ctx.arc(headX + 4, headY + 4, eyeR, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Pupils
-      ctx.fillStyle = skin.pupilColor;
-      ctx.beginPath();
-      ctx.arc(headX + 5, headY - 4, eyeR * 0.6, 0, Math.PI * 2);
-      ctx.arc(headX + 5, headY + 4, eyeR * 0.6, 0, Math.PI * 2);
-      ctx.fill();
-
+      t += 0.045;
+      drawIllustratedSnakePreview(ctx, skin, canvas.width, canvas.height, t);
       animId = requestAnimationFrame(render);
     };
 

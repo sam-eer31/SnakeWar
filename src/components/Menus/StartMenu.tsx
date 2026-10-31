@@ -3,6 +3,7 @@
 import React, { useRef, useEffect } from 'react';
 import { SKINS, SnakeSkin } from '@/game/config/skins';
 import { ArenaSessionConfig } from '@/game/config/session';
+import { drawIllustratedSnakePreview } from '@/game/render/IllustratedSnakeRenderer';
 
 interface StartMenuProps {
   playerName: string;
@@ -21,7 +22,7 @@ interface StartMenuProps {
   onSpectate: () => void;
 }
 
-// Slithering preview canvas inside the avatar card
+// Hand-drawn illustrated snake avatar preview matching the Snakes & Ladders style
 const SnakeAvatarPreview: React.FC<{ skin: SnakeSkin }> = ({ skin }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -36,69 +37,7 @@ const SnakeAvatarPreview: React.FC<{ skin: SnakeSkin }> = ({ skin }) => {
 
     const render = () => {
       t += 0.045;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
-      const segCount = 10;
-      const baseR = 12;
-
-      // Draw slithering segments
-      for (let i = segCount - 1; i >= 0; i--) {
-        const segDist = i * 13;
-        const wave = Math.sin(t - i * 0.45) * 14;
-        const x = cx - segDist + 35;
-        const y = cy + wave;
-
-        const color = skin.bodyColors[i % skin.bodyColors.length];
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x, y, baseR * (1 - (i / segCount) * 0.35), 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Head
-      const headWave = Math.sin(t) * 14;
-      const headX = cx + 35;
-      const headY = cy + headWave;
-
-      ctx.fillStyle = skin.headColor;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = skin.glowColor;
-      ctx.beginPath();
-      ctx.arc(headX, headY, baseR * 1.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Eyes
-      const eyeR = baseR * 0.35;
-      ctx.fillStyle = skin.eyeColor;
-      ctx.beginPath();
-      ctx.arc(headX + 5, headY - 5, eyeR, 0, Math.PI * 2);
-      ctx.arc(headX + 5, headY + 5, eyeR, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Pupils
-      ctx.fillStyle = skin.pupilColor;
-      ctx.beginPath();
-      ctx.arc(headX + 6, headY - 5, eyeR * 0.6, 0, Math.PI * 2);
-      ctx.arc(headX + 6, headY + 5, eyeR * 0.6, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Accessory
-      if (skin.accessory === 'crown') {
-        ctx.font = '16px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText('👑', headX, headY - baseR * 0.8);
-      } else if (skin.accessory === 'halo') {
-        ctx.strokeStyle = '#ffd700';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(headX, headY - baseR * 0.9, baseR * 0.7, baseR * 0.3, 0, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
+      drawIllustratedSnakePreview(ctx, skin, canvas.width, canvas.height, t);
       animId = requestAnimationFrame(render);
     };
 
