@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { GameOverStats } from '@/game/GameEngine';
+import { Skull, Trophy, Swords, Ruler, Clock, Crown, RotateCcw, Palette, Home, Eye, Settings } from 'lucide-react';
 
 interface GameOverModalProps {
   stats: GameOverStats;
@@ -31,61 +32,69 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-700/60 rounded-3xl p-6 shadow-2xl flex flex-col text-center relative overflow-hidden">
-        {/* Glow ambient accent */}
-        <div className="absolute -top-12 -left-12 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-12 -right-12 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-md bg-[#111827] border border-[#1e293b] rounded-2xl p-6 flex flex-col text-center">
         {/* Title */}
         <div className="mb-4">
-          <span className="text-4xl">💥</span>
-          <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-red-300 to-amber-400 mt-2">
+          <Skull className="w-8 h-8 text-red-400 mx-auto" />
+          <h2 className="font-game text-2xl font-bold text-red-400 mt-2">
             GAME OVER
           </h2>
           {isNewHighScore && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold mt-2 animate-bounce">
-              <span>🎉</span> NEW HIGH SCORE!
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-900/30 border border-amber-600/30 text-amber-400 text-xs font-bold mt-2">
+              <Trophy className="w-3.5 h-3.5" /> NEW HIGH SCORE!
             </div>
           )}
         </div>
 
         {/* Big Score Display */}
-        <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 mb-4">
+        <div className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-4 mb-4">
           <div className="text-[11px] uppercase font-bold tracking-wider text-slate-400">
             Final Score
           </div>
-          <div className="text-4xl font-black font-mono text-cyan-400 mt-1">
+          <div className="text-3xl font-game font-bold text-blue-400 tabular-nums mt-1">
             {stats.score.toLocaleString()}
           </div>
         </div>
 
         {/* Detailed Stats Grid */}
         <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-3 flex flex-col items-center">
-            <span className="text-xs text-slate-400 font-medium">⚔️ Kills</span>
-            <span className="text-lg font-bold text-slate-100 font-mono mt-0.5">
+          <div className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-3 flex flex-col items-center gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+              <Swords className="w-3.5 h-3.5" />
+              <span>Kills</span>
+            </div>
+            <span className="text-lg font-bold text-slate-100 tabular-nums">
               {stats.kills}
             </span>
           </div>
 
-          <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-3 flex flex-col items-center">
-            <span className="text-xs text-slate-400 font-medium">📏 Max Length</span>
-            <span className="text-lg font-bold text-slate-100 font-mono mt-0.5">
+          <div className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-3 flex flex-col items-center gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+              <Ruler className="w-3.5 h-3.5" />
+              <span>Max Length</span>
+            </div>
+            <span className="text-lg font-bold text-slate-100 tabular-nums">
               {stats.length}
             </span>
           </div>
 
-          <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-3 flex flex-col items-center">
-            <span className="text-xs text-slate-400 font-medium">⏱️ Time Survived</span>
-            <span className="text-lg font-bold text-slate-100 font-mono mt-0.5">
+          <div className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-3 flex flex-col items-center gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Time Survived</span>
+            </div>
+            <span className="text-lg font-bold text-slate-100 tabular-nums">
               {formatTime(stats.timeSurvivedSeconds)}
             </span>
           </div>
 
-          <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-3 flex flex-col items-center">
-            <span className="text-xs text-slate-400 font-medium">🏆 Peak Rank</span>
-            <span className="text-lg font-bold text-amber-400 font-mono mt-0.5">
+          <div className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-3 flex flex-col items-center gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+              <Crown className="w-3.5 h-3.5" />
+              <span>Peak Rank</span>
+            </div>
+            <span className="text-lg font-bold text-amber-400 tabular-nums">
               #{stats.topRank}
             </span>
           </div>
@@ -95,43 +104,47 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <div className="flex flex-col gap-2.5">
           <button
             onClick={onPlayAgain}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-400 to-indigo-500 font-black text-slate-950 uppercase tracking-wider text-sm sm:text-base shadow-[0_0_25px_rgba(56,189,248,0.4)] hover:brightness-110 active:scale-98 transition-all flex items-center justify-center gap-2"
+            className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-500 font-game font-semibold text-white uppercase tracking-wider text-sm transition-all active:scale-[0.97] flex items-center justify-center gap-2"
           >
+            <RotateCcw className="w-4 h-4" />
             <span>Play Again</span>
-            <span>🔁</span>
           </button>
 
           {onSpectate && (
             <button
               onClick={onSpectate}
-              className="w-full py-2.5 rounded-2xl bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-700/70 font-bold text-indigo-300 hover:text-white text-xs transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-98"
+              className="w-full h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 font-game font-semibold text-slate-200 uppercase tracking-wider text-xs transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
             >
-              <span>👁️ Continue Spectating Arena Match</span>
+              <Eye className="w-4 h-4" />
+              <span>Continue Spectating Arena Match</span>
             </button>
           )}
 
           {onReconfigureMatch && (
             <button
               onClick={onReconfigureMatch}
-              className="w-full py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 font-bold text-cyan-300 text-xs transition-all flex items-center justify-center gap-1.5"
+              className="w-full h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 font-game font-semibold text-slate-200 uppercase tracking-wider text-xs transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
             >
-              <span>⚙️ Configure Match / Change Rules</span>
+              <Settings className="w-4 h-4" />
+              <span>Configure Match / Change Rules</span>
             </button>
           )}
 
           <div className="grid grid-cols-2 gap-2 mt-1">
             <button
               onClick={onChangeSkin}
-              className="py-2.5 rounded-2xl bg-slate-950/60 hover:bg-slate-800/60 border border-slate-800 text-slate-300 font-semibold text-xs transition-all flex items-center justify-center gap-1.5"
+              className="py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-[#1e293b] font-game font-semibold text-slate-300 uppercase tracking-wider text-xs transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
             >
-              <span>🎨</span> Skins
+              <Palette className="w-4 h-4" />
+              <span>Skins</span>
             </button>
 
             <button
               onClick={onReturnToMenu}
-              className="py-2.5 rounded-2xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700/80 text-amber-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+              className="py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-[#1e293b] font-game font-semibold text-slate-300 uppercase tracking-wider text-xs transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
             >
-              <span>🏠</span> Main Menu
+              <Home className="w-4 h-4" />
+              <span>Main Menu</span>
             </button>
           </div>
         </div>

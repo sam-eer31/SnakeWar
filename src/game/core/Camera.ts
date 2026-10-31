@@ -21,8 +21,8 @@ export class Camera {
     this.viewportHeight = height;
     this.position = new Vector2D(0, 0);
     this.target = new Vector2D(0, 0);
-    this.zoom = 1;
-    this.targetZoom = 1;
+    this.zoom = GAME_CONFIG.BASE_ZOOM;
+    this.targetZoom = GAME_CONFIG.BASE_ZOOM;
   }
 
   resize(width: number, height: number): void {
@@ -38,19 +38,19 @@ export class Camera {
 
   setTargetZoom(zoom: number): void {
     if (!this.isFreeCam) {
-      this.targetZoom = Math.max(GAME_CONFIG.MIN_ZOOM, Math.min(GAME_CONFIG.BASE_ZOOM, zoom));
+      this.targetZoom = Math.max(GAME_CONFIG.MIN_ZOOM, Math.min(this.manualZoomMax, zoom));
     }
   }
 
-  // Spectator Free Cam Pan
+  // Spectator Free Cam Pan (1:1 direct cursor tracking)
   panFreeCam(screenDx: number, screenDy: number): void {
     this.isFreeCam = true;
     const worldDx = screenDx / this.zoom;
     const worldDy = screenDy / this.zoom;
-    this.target.x += worldDx;
-    this.target.y += worldDy;
-    this.position.x += worldDx;
-    this.position.y += worldDy;
+    this.target.x -= worldDx;
+    this.target.y -= worldDy;
+    this.position.x -= worldDx;
+    this.position.y -= worldDy;
   }
 
   // Spectator Manual Zoom In / Out

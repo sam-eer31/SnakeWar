@@ -2,12 +2,34 @@
 
 import React from 'react';
 import { GameSettings, GraphicsQuality, ControlScheme } from '@/game/config/settings';
+import { Settings, Mouse, Keyboard, Smartphone, VolumeX, Volume2, X } from 'lucide-react';
 
 interface SettingsModalProps {
   settings: GameSettings;
   onUpdateSettings: (newSettings: Partial<GameSettings>) => void;
   onClose: () => void;
 }
+
+const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) => void }> = ({
+  checked,
+  onChange,
+}) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+      checked ? 'bg-blue-600' : 'bg-slate-700'
+    }`}
+  >
+    <span
+      className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white transition-transform duration-200 ${
+        checked ? 'translate-x-5' : 'translate-x-0'
+      }`}
+    />
+  </button>
+);
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
@@ -19,23 +41,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-700/60 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-lg bg-[#111827] border border-[#1e293b] rounded-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <h2 className="text-xl font-black text-slate-100 flex items-center gap-2">
-            <span>⚙️</span> Game Settings
-          </h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e293b]">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
+              <Settings className="w-4.5 h-4.5 text-blue-400" />
+            </div>
+            <h2 className="text-xl font-game font-bold text-white">Game Settings</h2>
+          </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors"
+            className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Settings Body */}
-        <div className="space-y-5 py-5 overflow-y-auto pr-1 text-sm">
+        <div className="space-y-5 px-6 py-5 overflow-y-auto text-sm">
           {/* Graphics Quality */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
@@ -54,10 +79,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         particles: q !== 'low',
                       });
                     }}
-                    className={`py-2 px-3 rounded-xl font-semibold capitalize text-xs border transition-all ${
+                    className={`py-2 px-3 rounded-lg font-semibold capitalize text-xs border transition-colors ${
                       isActive
-                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
-                        : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700'
+                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
+                        : 'bg-white/[0.03] border-[#1e293b] text-slate-400 hover:border-slate-600'
                     }`}
                   >
                     {q}
@@ -68,43 +93,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           {/* Visual Toggles */}
-          <div className="space-y-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4">
+          <div className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-4 space-y-0">
             <div className="flex items-center justify-between">
               <div>
                 <div className="font-semibold text-slate-200">Neon Glow Effects</div>
-                <div className="text-xs text-slate-400">Radiant aura around snakes and food</div>
+                <div className="text-xs text-slate-500">Radiant aura around snakes and food</div>
               </div>
-              <input
-                type="checkbox"
+              <ToggleSwitch
                 checked={settings.glowEffects}
-                onChange={(e) => update({ glowEffects: e.target.checked })}
-                className="w-5 h-5 accent-cyan-400 rounded cursor-pointer"
+                onChange={(checked) => update({ glowEffects: checked })}
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#1e293b]">
               <div>
-                <div className="font-semibold text-slate-200">Particle Sparks & Smoke</div>
-                <div className="text-xs text-slate-400">Boost flame trails and death bursts</div>
+                <div className="font-semibold text-slate-200">Particle Sparks &amp; Smoke</div>
+                <div className="text-xs text-slate-500">Boost flame trails and death bursts</div>
               </div>
-              <input
-                type="checkbox"
+              <ToggleSwitch
                 checked={settings.particles}
-                onChange={(e) => update({ particles: e.target.checked })}
-                className="w-5 h-5 accent-cyan-400 rounded cursor-pointer"
+                onChange={(checked) => update({ particles: checked })}
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#1e293b]">
               <div>
                 <div className="font-semibold text-slate-200">Screen Shake</div>
-                <div className="text-xs text-slate-400">Tactile impact feedback upon explosions</div>
+                <div className="text-xs text-slate-500">Tactile impact feedback upon explosions</div>
               </div>
-              <input
-                type="checkbox"
+              <ToggleSwitch
                 checked={settings.screenShake}
-                onChange={(e) => update({ screenShake: e.target.checked })}
-                className="w-5 h-5 accent-cyan-400 rounded cursor-pointer"
+                onChange={(checked) => update({ screenShake: checked })}
               />
             </div>
           </div>
@@ -117,13 +136,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </label>
               <button
                 onClick={() => update({ soundMuted: !settings.soundMuted })}
-                className={`text-xs px-2.5 py-1 rounded-lg border font-medium ${
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
                   settings.soundMuted
-                    ? 'bg-rose-950/50 border-rose-800 text-rose-300'
-                    : 'bg-slate-800 border-slate-700 text-slate-300'
+                    ? 'bg-red-950/30 border-red-800/50 text-red-400'
+                    : 'bg-white/[0.03] border-[#1e293b] text-slate-300 hover:border-slate-600'
                 }`}
               >
-                {settings.soundMuted ? '🔇 Unmute' : '🔊 Mute'}
+                {settings.soundMuted ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5" />
+                    Unmute
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5" />
+                    Mute
+                  </>
+                )}
               </button>
             </div>
             <input
@@ -134,7 +163,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               disabled={settings.soundMuted}
               value={settings.soundVolume}
               onChange={(e) => update({ soundVolume: parseFloat(e.target.value) })}
-              className="w-full accent-cyan-400 h-2 bg-slate-800 rounded-lg cursor-pointer"
+              className="w-full accent-blue-500 h-2 bg-slate-800 rounded-lg cursor-pointer disabled:opacity-40"
             />
           </div>
 
@@ -146,22 +175,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="grid grid-cols-3 gap-2">
               {(
                 [
-                  { id: 'mouse', label: '🖱️ Mouse Track' },
-                  { id: 'keyboard', label: '⌨️ Arrow / WASD' },
-                  { id: 'touch', label: '📱 Touch / Joystick' },
-                ] as { id: ControlScheme; label: string }[]
+                  { id: 'mouse', label: 'Mouse Track', Icon: Mouse },
+                  { id: 'keyboard', label: 'Arrow / WASD', Icon: Keyboard },
+                  { id: 'touch', label: 'Touch / Joystick', Icon: Smartphone },
+                ] as { id: ControlScheme; label: string; Icon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number | string }> }[]
               ).map((ctrl) => {
                 const isActive = settings.controlScheme === ctrl.id;
                 return (
                   <button
                     key={ctrl.id}
                     onClick={() => update({ controlScheme: ctrl.id })}
-                    className={`py-2 px-2 rounded-xl font-semibold text-xs border text-center transition-all ${
+                    className={`flex flex-col items-center gap-1.5 py-2.5 px-2 rounded-lg font-semibold text-xs border text-center transition-colors ${
                       isActive
-                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
-                        : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700'
+                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
+                        : 'bg-white/[0.03] border-[#1e293b] text-slate-400 hover:border-slate-600'
                     }`}
                   >
+                    <ctrl.Icon className="w-4 h-4" />
                     {ctrl.label}
                   </button>
                 );
@@ -170,27 +200,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           {/* HUD Overlay Preferences */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+          <div className="flex items-center justify-between pt-3 border-t border-[#1e293b]">
             <div>
               <div className="font-semibold text-slate-200">Show FPS Counter</div>
-              <div className="text-xs text-slate-400">Display real-time frame rate</div>
+              <div className="text-xs text-slate-500">Display real-time frame rate</div>
             </div>
-            <input
-              type="checkbox"
+            <ToggleSwitch
               checked={settings.showFps}
-              onChange={(e) => update({ showFps: e.target.checked })}
-              className="w-5 h-5 accent-cyan-400 rounded cursor-pointer"
+              onChange={(checked) => update({ showFps: checked })}
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="pt-4 border-t border-slate-800 flex justify-end">
+        <div className="px-6 py-4 border-t border-[#1e293b] flex justify-end">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-400 font-bold text-sm text-slate-950 hover:brightness-110 shadow-lg transition-all"
+            className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-game font-bold text-sm text-white transition-colors"
           >
-            Save & Close
+            Save &amp; Close
           </button>
         </div>
       </div>

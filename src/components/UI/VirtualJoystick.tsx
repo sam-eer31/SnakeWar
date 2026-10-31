@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
+import { Zap } from 'lucide-react';
 
 interface VirtualJoystickProps {
   onMove: (angle: number) => void;
@@ -67,10 +68,10 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onBoos
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="w-28 h-28 rounded-full bg-slate-900/50 backdrop-blur-md border-2 border-slate-700/60 flex items-center justify-center relative pointer-events-auto touch-none shadow-2xl"
+        className="w-28 h-28 rounded-full bg-[#0a0e1a]/80 backdrop-blur-md border border-[#1e293b] flex items-center justify-center relative pointer-events-auto touch-none"
       >
         <div
-          className="w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-500 to-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.7)] transition-transform duration-75"
+          className="w-12 h-12 rounded-full bg-blue-600/80 border border-blue-400/50 transition-transform duration-75"
           style={{
             transform: touchPos
               ? `translate(${touchPos.x}px, ${touchPos.y}px)`
@@ -85,16 +86,15 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onBoos
         onTouchEnd={handleBoostEnd}
         onMouseDown={handleBoostStart}
         onMouseUp={handleBoostEnd}
-        className={`w-20 h-20 rounded-full flex flex-col items-center justify-center font-bold text-xs uppercase tracking-wider transition-all pointer-events-auto shadow-2xl ${
+        className={`w-20 h-20 rounded-full flex flex-col items-center justify-center font-game font-bold text-xs uppercase tracking-wider transition-all pointer-events-auto active:scale-95 ${
           isBoosting
-            ? 'bg-gradient-to-tr from-orange-600 to-amber-500 scale-95 shadow-[0_0_20px_rgba(245,158,11,0.9)] text-white'
-            : 'bg-slate-900/80 backdrop-blur-md border-2 border-orange-500/60 text-orange-400 shadow-lg'
+            ? 'bg-amber-600 border-2 border-amber-400 text-white'
+            : 'bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] text-amber-400'
         }`}
       >
-        <span className="text-xl">⚡</span>
+        <Zap className="w-6 h-6 mb-0.5" />
         <span>Boost</span>
       </button>
     </div>
   );
 };
-

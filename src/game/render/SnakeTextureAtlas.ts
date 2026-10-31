@@ -1,5 +1,7 @@
 import { SnakeSkin, SKINS } from '../config/skins';
 
+export type SpriteDrawable = HTMLImageElement;
+
 export interface SnakeSprites {
   head: HTMLImageElement;
   body: HTMLImageElement;
@@ -32,14 +34,29 @@ function getSkinFolder(skinId: string): string {
   }
 }
 
-function loadFileImage(src: string): HTMLImageElement {
+function loadWebpImage(src: string): HTMLImageElement {
+  if (typeof Image === 'undefined') {
+    return {} as HTMLImageElement;
+  }
   const img = new Image();
   img.src = src;
   return img;
 }
 
+export function isSpriteReady(sprite: HTMLImageElement | null | undefined): boolean {
+  return !!sprite && sprite.complete && sprite.naturalWidth > 0;
+}
+
+export function getSpriteDimensions(sprite: HTMLImageElement): { width: number; height: number } {
+  return {
+    width: sprite?.naturalWidth || 1,
+    height: sprite?.naturalHeight || 1,
+  };
+}
+
 /**
  * Get or load physical 3D dragon sprite assets for a skin
+ * All skins now use ultra-lightweight, high-definition WebP textures
  */
 export function getSnakeSprites(skin: SnakeSkin): SnakeSprites {
   let sprites = spriteCache.get(skin.id);
@@ -48,9 +65,9 @@ export function getSnakeSprites(skin: SnakeSkin): SnakeSprites {
   const folder = getSkinFolder(skin.id);
 
   sprites = {
-    head: loadFileImage(`${folder}/head.png`),
-    body: loadFileImage(`${folder}/body.png`),
-    tail: loadFileImage(`${folder}/tail.png`),
+    head: loadWebpImage(`${folder}/head.webp`),
+    body: loadWebpImage(`${folder}/body.webp`),
+    tail: loadWebpImage(`${folder}/tail.webp`),
     glowColor: skin.glowColor || 'rgba(16, 185, 129, 0.6)',
     eyeColor: skin.eyeColor || '#4ade80',
   };

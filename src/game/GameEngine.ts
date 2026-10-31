@@ -1,4 +1,5 @@
 import { Camera } from './core/Camera';
+import { Vector2D } from './core/Vector2D';
 import { GameLoop } from './core/GameLoop';
 import { Snake } from './entities/Snake';
 import { FoodManager } from './entities/FoodManager';
@@ -70,11 +71,13 @@ export class GameEngine {
   private bestRankAchieved: number = 999;
   private nextPowerUpId: number = 1;
   private powerUpSpawnTimer: number = 0;
+  private camTarget: Vector2D = new Vector2D(0, 0);
 
   // Callbacks for UI
   public onStatsUpdate?: (stats: PlayerStats) => void;
   public onLeaderboardUpdate?: (leaderboard: LeaderboardEntry[]) => void;
   public onGameOver?: (stats: GameOverStats) => void;
+  public dpr: number = 1;
 
   constructor(canvas: HTMLCanvasElement, settings: GameSettings = DEFAULT_SETTINGS) {
     this.canvas = canvas;
@@ -83,7 +86,14 @@ export class GameEngine {
     this.ctx = ctx;
     this.settings = settings;
 
-    this.camera = new Camera(canvas.width, canvas.height);
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1;
+    this.dpr = dpr;
+    const cssW = typeof window !== 'undefined' ? window.innerWidth : canvas.width;
+    const cssH = typeof window !== 'undefined' ? window.innerHeight : canvas.height;
+    this.canvas.width = Math.floor(cssW * dpr);
+    this.canvas.height = Math.floor(cssH * dpr);
+
+    this.camera = new Camera(cssW, cssH);
     this.foodManager = new FoodManager();
     this.botManager = new BotManager();
     this.particleSystem = new ParticleSystem(settings.particles ? 300 : 0);
@@ -106,9 +116,11 @@ export class GameEngine {
     soundManager.setMuted(settings.soundMuted);
   }
 
-  resize(width: number, height: number): void {
-    this.canvas.width = width;
-    this.canvas.height = height;
+  resize(width: number, height: number, dpr?: number): void {
+    const pixelRatio = dpr || (typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1);
+    this.dpr = pixelRatio;
+    this.canvas.width = Math.floor(width * pixelRatio);
+    this.canvas.height = Math.floor(height * pixelRatio);
     this.camera.resize(width, height);
   }
 
@@ -572,12 +584,23 @@ export class GameEngine {
     // 6. Clean up dead snakes
     this.allSnakes = this.allSnakes.filter((s) => !s.isDead);
 
-    // 7. Update Camera
+    // 7. Update Camera (Authentic Slither.io Camera Distance & Head Centering)
     if (this.isSpectating) {
       if (!this.camera.isFreeCam) {
         const target = this.getSpectateTarget();
         if (target && !target.isDead) {
-          this.camera.setTarget(target.position);
+          const forwardLead = target.radius * (target.isBoosting ? 0.6 : 0.35);
+          this.camTarget.set(
+            target.position.x + Math.cos(target.angle) * forwardLead,
+            target.position.y + Math.sin(target.angle) * forwardLead
+          );
+          this.camera.setTarget(this.camTarget);
+
+          const massRatio = Math.max(0, (target.mass - GAME_CONFIG.BASE_MASS) / 2000);
+          const growthZoom = 1 / Math.pow(1 + massRatio, 0.36);
+          const vH = this.camera.viewportHeight || 900;
+          const responsiveScale = Math.min(1.15, Math.max(0.78, vH / 900));
+          this.camera.setTargetZoom(Math.max(GAME_CONFIG.MIN_ZOOM, GAME_CONFIG.BASE_ZOOM * responsiveScale * growthZoom));
         } else {
           // If spectated snake died or missing, auto-lock to next living snake
           const living = this.allSnakes.filter((s) => !s.isDead);
@@ -590,10 +613,30 @@ export class GameEngine {
         }
       }
     } else if (player && !player.isDead) {
-      this.camera.setTarget(player.position);
-      // Zoom out smoothly as snake grows
-      const zoomRatio = 1 - (player.radius - GAME_CONFIG.INITIAL_RADIUS) / (GAME_CONFIG.MAX_RADIUS - GAME_CONFIG.INITIAL_RADIUS);
-      const targetZoom = GAME_CONFIG.MIN_ZOOM + (GAME_CONFIG.BASE_ZOOM - GAME_CONFIG.MIN_ZOOM) * Math.max(0, zoomRatio);
+      // Slither.io authentic head centering: targets center of head with smooth forward lead
+      const forwardLead = player.radius * (player.isBoosting ? 0.65 : 0.38);
+      this.camTarget.set(
+        player.position.x + Math.cos(player.angle) * forwardLead,
+        player.position.y + Math.sin(player.angle) * forwardLead
+      );
+      this.camera.setTarget(this.camTarget);
+
+      // Slither.io authentic camera distance & smooth logarithmic pullback as mass grows
+      const massRatio = Math.max(0, (player.mass - GAME_CONFIG.BASE_MASS) / 2000);
+      const growthZoom = 1 / Math.pow(1 + massRatio, 0.36);
+
+      // Viewport-aware scaling: guarantees consistent Slither.io arena perspective across mobile and desktop
+      const vH = this.camera.viewportHeight || 900;
+      const responsiveScale = Math.min(1.15, Math.max(0.78, vH / 900));
+      const slitherBase = GAME_CONFIG.BASE_ZOOM * responsiveScale;
+
+      // Dynamic FOV expansion during high-speed boost (Slither.io boost feel)
+      const boostFov = player.isBoosting ? 0.94 : 1.0;
+
+      const targetZoom = Math.max(
+        GAME_CONFIG.MIN_ZOOM,
+        slitherBase * growthZoom * boostFov
+      );
       this.camera.setTargetZoom(targetZoom);
     }
     this.camera.update(deltaRatio);
@@ -859,7 +902,8 @@ export class GameEngine {
       this.foodManager,
       this.powerUps,
       this.particleSystem,
-      this.playerSnake
+      this.playerSnake,
+      this.dpr
     );
   }
 }

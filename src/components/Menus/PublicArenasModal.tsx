@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Globe, TreePine, Swords, Play, Lock, Eye, Zap, Wifi, WifiOff, Clock, Users, X } from 'lucide-react';
 
 export interface PublicArenaInfo {
   id: 'medium' | 'hard';
@@ -185,41 +186,41 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-2xl bg-slate-900/95 border border-slate-700/80 rounded-3xl p-5 sm:p-7 shadow-2xl flex flex-col relative max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-2xl bg-[#111827] border border-[#1e293b] rounded-2xl p-5 sm:p-6 flex flex-col relative max-h-[92vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+        <div className="flex items-center justify-between pb-4 border-b border-[#1e293b] mb-5">
           <div className="flex items-center gap-3">
-            <span className="text-2xl p-2 bg-cyan-950/70 border border-cyan-800/50 rounded-2xl">
-              🌐
-            </span>
+            <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+              <Globe className="w-5 h-5 text-blue-400" />
+            </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400">
-                Official Public Arenas
+              <h2 className="text-xl font-bold font-game text-white">
+                Public Arenas
               </h2>
-              <p className="text-xs text-slate-400 font-medium">
+              <p className="text-xs text-slate-400">
                 Live 24/7 dedicated servers with persistent AI ecosystems and players
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold transition-colors"
+            className="w-8 h-8 rounded-lg bg-[#1a2235] hover:bg-[#243044] border border-[#1e293b] text-slate-400 hover:text-white flex items-center justify-center transition-colors"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Server Connection Banner */}
-        <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3 mb-5 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
+        <div className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-3 mb-5 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2.5">
             <span
-              className={`w-2.5 h-2.5 rounded-full ${
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${
                 arenas.some((a) => a.isOnline)
                   ? 'bg-emerald-400 animate-pulse'
                   : isChecking
                   ? 'bg-amber-400 animate-pulse'
-                  : 'bg-rose-500'
+                  : 'bg-red-500'
               }`}
             />
             <span className="text-slate-300 font-medium">
@@ -231,15 +232,16 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                 <>Connecting to Render Dedicated Backend...</>
               ) : (
                 <>
-                  Dedicated Arenas: <strong className="text-rose-400">OFFLINE</strong>
+                  Dedicated Arenas: <strong className="text-red-400">OFFLINE</strong>
                 </>
               )}
             </span>
           </div>
 
           {arenas.some((a) => a.isOnline) && (
-            <span className="text-[11px] font-mono font-bold text-slate-400">
-              Ping: {arenas[0].pingMs || arenas[1].pingMs}ms
+            <span className="text-[11px] font-mono font-bold text-slate-500 flex items-center gap-1.5">
+              <Wifi className="w-3 h-3" />
+              {arenas[0].pingMs || arenas[1].pingMs}ms
             </span>
           )}
         </div>
@@ -248,60 +250,70 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
           {arenas.map((arena) => {
             const isMed = arena.id === 'medium';
-            const badgeColor = isMed
-              ? 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300'
-              : 'bg-rose-950/70 border-rose-700/60 text-rose-300';
+            const diffColor = isMed
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              : 'bg-red-500/10 text-red-400 border-red-500/20';
 
             return (
               <div
                 key={arena.id}
-                className={`bg-slate-950/60 border rounded-3xl p-5 flex flex-col justify-between transition-all hover:bg-slate-950/80 shadow-xl relative overflow-hidden ${
-                  isMed ? 'border-emerald-500/30 hover:border-emerald-400/50' : 'border-rose-500/30 hover:border-rose-400/50'
-                }`}
+                className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-4 flex flex-col justify-between transition-colors hover:border-slate-600"
               >
                 {/* Header info */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-2xl">{isMed ? '🌲' : '⚔️'}</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-2 bg-[#1a2235] rounded-lg">
+                      {isMed ? (
+                        <TreePine className="w-5 h-5 text-emerald-400" />
+                      ) : (
+                        <Swords className="w-5 h-5 text-red-400" />
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5">
                       {arena.isOnline ? (
-                        <span className="flex items-center gap-1 bg-emerald-950/80 border border-emerald-600/50 text-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                        <span className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          ONLINE • {arena.pingMs}ms
+                          ONLINE
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 bg-rose-950/80 border border-rose-600/50 text-rose-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                        <span className="flex items-center gap-1 bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                           OFFLINE
                         </span>
                       )}
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${badgeColor}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${diffColor}`}>
                         {arena.difficulty}
                       </span>
                     </div>
                   </div>
 
-                  <h3 className="text-lg font-black text-slate-100 mb-1">
+                  <h3 className="text-base font-bold font-game text-[#f1f5f9] mb-1">
                     {arena.name}
                   </h3>
 
-                  <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                  <p className="text-xs text-[#94a3b8] leading-relaxed mb-4">
                     {isMed
                       ? 'Massive 9,000px battleground. Strict Medium & Easy bots only (0% red apex predators). Great for steady growth and hunting.'
                       : 'Massive 9,000px Colosseum. Dominated by aggressive Red Apex grandmaster bots with lethal constrictor coils and speed cuts.'}
                   </p>
 
                   {/* Arena Stats */}
-                  <div className="grid grid-cols-2 gap-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-2.5 mb-4 text-[11px]">
+                  <div className="grid grid-cols-2 gap-3 bg-[#111827] border border-[#1e293b] rounded-lg p-3 mb-4 text-[11px]">
                     <div>
-                      <div className="text-slate-400 text-[10px]">Active Snakes</div>
-                      <div className="font-bold text-cyan-300 font-mono">
+                      <div className="text-[#64748b] text-[10px] flex items-center gap-1 mb-0.5">
+                        <Users className="w-3 h-3" />
+                        Active Snakes
+                      </div>
+                      <div className="font-bold text-[#f1f5f9] font-mono">
                         {arena.isOnline ? `${arena.snakesCount} Serpents` : '--'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-slate-400 text-[10px]">Server Uptime</div>
-                      <div className="font-bold text-slate-200 font-mono">
+                      <div className="text-[#64748b] text-[10px] flex items-center gap-1 mb-0.5">
+                        <Clock className="w-3 h-3" />
+                        Server Uptime
+                      </div>
+                      <div className="font-bold text-[#f1f5f9] font-mono">
                         {arena.isOnline ? formatUptime(arena.uptimeSeconds) : '--'}
                       </div>
                     </div>
@@ -313,28 +325,38 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                   <button
                     disabled={!arena.isOnline}
                     onClick={() => onJoinArena(arena.id, false, serverUrl)}
-                    className={`w-full py-3 rounded-2xl font-black text-sm uppercase tracking-wider text-slate-950 shadow-lg active:scale-98 transition-all flex items-center justify-center gap-1.5 ${
+                    className={`w-full py-2.5 rounded-lg font-bold text-sm uppercase tracking-wide flex items-center justify-center gap-2 transition-colors ${
                       !arena.isOnline
-                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                        ? 'bg-[#1a2235] text-[#64748b] cursor-not-allowed'
                         : isMed
-                        ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:brightness-110'
-                        : 'bg-gradient-to-r from-rose-500 via-orange-400 to-amber-400 hover:brightness-110'
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-red-600 hover:bg-red-500 text-white'
                     }`}
                   >
-                    <span>{arena.isOnline ? 'ENTER & PLAY' : 'SERVER OFFLINE'}</span>
-                    <span>{arena.isOnline ? '🚀' : '🔒'}</span>
+                    {arena.isOnline ? (
+                      <>
+                        <Play className="w-4 h-4" />
+                        Enter & Play
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        Server Offline
+                      </>
+                    )}
                   </button>
 
                   <button
                     disabled={!arena.isOnline}
                     onClick={() => onJoinArena(arena.id, true, serverUrl)}
-                    className={`w-full py-2 rounded-2xl border font-bold text-xs transition-colors flex items-center justify-center gap-1 ${
+                    className={`w-full py-2 rounded-lg border font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 ${
                       !arena.isOnline
-                        ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
-                        : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700/80 text-slate-300 hover:text-white'
+                        ? 'bg-transparent border-[#1e293b] text-[#64748b] cursor-not-allowed'
+                        : 'bg-transparent hover:bg-[#1a2235] border-[#1e293b] hover:border-slate-600 text-[#94a3b8] hover:text-white'
                     }`}
                   >
-                    <span>👁️ Spectate Live Arena</span>
+                    <Eye className="w-3.5 h-3.5" />
+                    Spectate Live Arena
                   </button>
                 </div>
               </div>
@@ -343,11 +365,11 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
         </div>
 
         {/* Footer Note */}
-        <div className="text-center text-[11px] text-slate-400">
-          ⚡ 30 Hz server-authoritative tick rate with real-time WebSocket multiplayer and persistent AI ecosystems on Render.
+        <div className="text-center text-[11px] text-[#64748b] flex items-center justify-center gap-1.5">
+          <Zap className="w-3 h-3" />
+          30 Hz server-authoritative tick rate with real-time WebSocket multiplayer and persistent AI ecosystems on Render.
         </div>
       </div>
     </div>
   );
 };
-

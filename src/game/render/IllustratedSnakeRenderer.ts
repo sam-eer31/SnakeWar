@@ -1,7 +1,7 @@
 import { Camera } from '../core/Camera';
 import { Snake } from '../entities/Snake';
 import { SnakeSkin } from '../config/skins';
-import { getSnakeSprites, preheatSnakeSpriteAtlas } from './SnakeTextureAtlas';
+import { getSnakeSprites, preheatSnakeSpriteAtlas, isSpriteReady, getSpriteDimensions } from './SnakeTextureAtlas';
 
 if (typeof window !== 'undefined') {
   preheatSnakeSpriteAtlas();
@@ -83,7 +83,7 @@ export function drawIllustratedSnake(
   }
 
   // 3. Name Tag Badge
-  ctx.font = `700 ${Math.max(10, Math.round(12 * scale))}px 'Inter', sans-serif`;
+  ctx.font = `700 ${Math.max(10, Math.round(12 * scale))}px 'GameFont', 'Inter', sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
 
@@ -137,6 +137,8 @@ export function drawIllustratedSnakePreview(
   time: number
 ): void {
   ctx.clearRect(0, 0, width, height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   const cx = width / 2;
   const cy = height / 2;
@@ -299,7 +301,7 @@ function renderRealisticDragonSerpent(
   ctx.restore();
 
   // 3. 3D Tapered Tail Tip Sprite (drawn under the body so root connects seamlessly)
-  if (sprites?.tail && sprites.tail.complete && sprites.tail.naturalWidth > 0) {
+  if (sprites?.tail && isSpriteReady(sprites.tail)) {
     const tailH = lastSeg.r * 2.2;
     ctx.save();
     ctx.translate(lastSeg.x, lastSeg.y);
@@ -309,7 +311,7 @@ function renderRealisticDragonSerpent(
   }
 
   // 4. 3D Dragon Scale Body Segments (spaced by distance stride for smooth, high-fidelity scale flow)
-  const hasBodySprite = sprites?.body && sprites.body.complete && sprites.body.naturalWidth > 0;
+  const hasBodySprite = !!sprites?.body && isSpriteReady(sprites.body);
 
   if (hasBodySprite) {
     // Select vertebra positions using cumulative distance stride (~0.68 * radius)
@@ -408,10 +410,11 @@ function renderRealisticDragonSerpent(
   }
 
   // B. Draw 3D Dragon Head Sprite (High-resolution render with authentic glowing slit eyes)
-  const hasHeadSprite = sprites?.head && sprites.head.complete && sprites.head.naturalWidth > 0;
+  const hasHeadSprite = !!sprites?.head && isSpriteReady(sprites.head);
 
-  if (hasHeadSprite) {
-    const headAspect = sprites.head.naturalHeight / sprites.head.naturalWidth;
+  if (hasHeadSprite && sprites?.head) {
+    const { width: headW_orig, height: headH_orig } = getSpriteDimensions(sprites.head);
+    const headAspect = headH_orig / headW_orig;
     const headW = R * 2.85;
     const headH = headW * headAspect;
 

@@ -38,17 +38,17 @@ export const Minimap: React.FC<MinimapProps> = ({
 
     ctx.clearRect(0, 0, size, size);
 
-    // Semi-translucent arena circle background so background arena is visible
-    ctx.fillStyle = 'rgba(10, 15, 26, 0.4)';
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.55)';
-    ctx.lineWidth = 2.5;
+    // Dark radar arena circle background
+    ctx.fillStyle = 'rgba(10, 14, 26, 0.75)';
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(center, center, arenaRadius * mapScale, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Subtle center guide ring
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    // Subtle radar crosshair rings
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(center, center, arenaRadius * 0.5 * mapScale, 0, Math.PI * 2);
@@ -70,7 +70,7 @@ export const Minimap: React.FC<MinimapProps> = ({
       const sx = center + snake.position.x * mapScale;
       const sy = center + snake.position.y * mapScale;
 
-      ctx.fillStyle = 'rgba(226, 232, 240, 0.65)';
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
       ctx.beginPath();
       ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
       ctx.fill();
@@ -82,27 +82,26 @@ export const Minimap: React.FC<MinimapProps> = ({
       const py = center + playerSnake.position.y * mapScale;
 
       // Pulse ring
-      ctx.strokeStyle = '#00f2fe';
+      ctx.strokeStyle = '#3b82f6';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(px, py, 7, 0, Math.PI * 2);
+      ctx.arc(px, py, 6.5, 0, Math.PI * 2);
       ctx.stroke();
 
       // Dot
-      ctx.fillStyle = '#38bdf8';
+      ctx.fillStyle = '#60a5fa';
       ctx.beginPath();
-      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
   }, [playerSnake, allSnakes, powerUps, arenaRadius]);
 
   return (
-    <div className="relative rounded-full p-0.5 bg-black/30 backdrop-blur-[2px] border border-white/15 shadow-xl pointer-events-none select-none flex-shrink-0">
+    <div className="relative rounded-full p-1 bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] pointer-events-none select-none flex-shrink-0">
       <canvas
         ref={canvasRef}
-        className="w-[62px] h-[62px] sm:w-[74px] sm:h-[74px] rounded-full block"
+        className="w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full block"
       />
     </div>
   );
 };
-

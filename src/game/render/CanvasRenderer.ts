@@ -6,6 +6,7 @@ import { ParticleSystem } from './ParticleSystem';
 import { GAME_CONFIG } from '../config/constants';
 import { GameSettings } from '../config/settings';
 import { drawIllustratedSnake } from './IllustratedSnakeRenderer';
+import { getPowerUpImage } from './PowerUpTextureAtlas';
 
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
@@ -134,7 +135,7 @@ export class CanvasRenderer {
     }
   }
 
-  // Draw power-up items
+  // Draw power-up items (direct images without outer bubbles or circles)
   drawPowerUps(powerUps: PowerUp[], camera: Camera): void {
     const ctx = this.ctx;
 
@@ -142,35 +143,27 @@ export class CanvasRenderer {
       if (!camera.isInView(p.position.x, p.position.y, p.radius * 3)) continue;
 
       const screen = camera.worldToScreen(p.position.x, p.position.y);
-      const cfg = POWERUP_CONFIGS[p.type];
       const r = p.radius * camera.zoom;
+      const size = r * 2.6;
 
       ctx.save();
+      ctx.translate(screen.x, screen.y);
 
-      // Outer pulsing ring
-      const pulseR = r + Math.sin(p.pulsePhase) * (6 * camera.zoom);
-      ctx.lineWidth = 2 * camera.zoom;
-      ctx.strokeStyle = cfg.color;
-      if (this.settings.glowEffects) {
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = cfg.glowColor;
+      // Subtle floating hover
+      const floatY = Math.sin(p.pulsePhase) * (2.5 * camera.zoom);
+
+      // Draw direct high-def WebP Power-up image
+      const img = getPowerUpImage(p.type);
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, -size * 0.5, -size * 0.5 + floatY, size, size);
+      } else {
+        // Fallback to emoji if asset is loading
+        const cfg = POWERUP_CONFIGS[p.type];
+        ctx.font = `${Math.round(24 * camera.zoom)}px 'GameFont', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(cfg.icon, 0, floatY);
       }
-      ctx.beginPath();
-      ctx.arc(screen.x, screen.y, Math.max(5, pulseR), 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Inner disc
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      ctx.beginPath();
-      ctx.arc(screen.x, screen.y, Math.max(3, r), 0, Math.PI * 2);
-      ctx.fill();
-
-      // Power-up Icon Emoji
-      ctx.shadowBlur = 0;
-      ctx.font = `${Math.round(20 * camera.zoom)}px 'Outfit', sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(cfg.icon, screen.x, screen.y);
 
       ctx.restore();
     }
@@ -188,12 +181,22 @@ export class CanvasRenderer {
     foodManager: FoodManager,
     powerUps: PowerUp[],
     particleSystem: ParticleSystem,
-    playerSnake: Snake | null
+    playerSnake: Snake | null,
+    dpr: number = 1
   ): void {
-    const width = this.ctx.canvas.width;
-    const height = this.ctx.canvas.height;
+    const ctx = this.ctx;
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
 
     this.clear(width, height);
+
+    ctx.save();
+    if (dpr !== 1) {
+      ctx.scale(dpr, dpr);
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
     this.drawBackground(camera);
     this.drawFood(foodManager, camera);
     this.drawPowerUps(powerUps, camera);
@@ -212,8 +215,10 @@ export class CanvasRenderer {
 
     // Draw particles
     if (this.settings.particles) {
-      particleSystem.render(this.ctx, camera);
+      particleSystem.render(ctx, camera);
     }
+
+    ctx.restore();
   }
 }
 

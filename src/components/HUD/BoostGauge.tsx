@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { GAME_CONFIG } from '@/game/config/constants';
+import { Zap, Flame } from 'lucide-react';
 
 interface BoostGaugeProps {
   mass: number;
@@ -17,29 +18,37 @@ export const BoostGauge: React.FC<BoostGaugeProps> = ({ mass, isBoosting, hasTur
   const percentage = Math.round(ratio * 100);
 
   return (
-    <div className="flex flex-col items-center gap-0.5 select-none pointer-events-none">
-      <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-300">
-        <span className={isBoosting ? 'animate-bounce text-orange-400' : 'text-slate-400'}>
-          {hasTurbo ? '⚡ TURBO' : '🔥 BOOST'}
-        </span>
+    <div className="flex flex-col items-center gap-1 select-none pointer-events-none">
+      <div className="flex items-center gap-1.5 text-[10px] font-game font-bold uppercase tracking-wider">
+        {hasTurbo ? (
+          <span className="flex items-center gap-1 text-amber-400">
+            <Zap className="w-3.5 h-3.5 fill-amber-400" />
+            Turbo Active
+          </span>
+        ) : (
+          <span className={`flex items-center gap-1 transition-colors ${isBoosting ? 'text-orange-400' : 'text-[#64748b]'}`}>
+            <Flame className={`w-3.5 h-3.5 ${isBoosting ? 'fill-orange-400' : ''}`} />
+            Boost
+          </span>
+        )}
       </div>
 
-      <div className="w-28 sm:w-36 h-2 sm:h-2.5 bg-black/40 backdrop-blur-[2px] rounded-full border border-white/10 p-0.5 overflow-hidden shadow-lg relative">
+      <div className="w-28 sm:w-36 h-2 sm:h-2.5 bg-[#0a0e1a]/90 backdrop-blur-md rounded-full border border-[#1e293b] p-0.5 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-75 ${
             hasTurbo
-              ? 'bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+              ? 'bg-gradient-to-r from-amber-400 to-red-500'
               : isBoosting
-              ? 'bg-gradient-to-r from-orange-500 to-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.7)]'
-              : 'bg-gradient-to-r from-cyan-500 to-blue-500'
+              ? 'bg-gradient-to-r from-orange-500 to-amber-400'
+              : 'bg-blue-500'
           }`}
           style={{ width: `${hasTurbo ? 100 : percentage}%` }}
         />
       </div>
-      <span className="hidden sm:inline text-[8px] text-slate-400 font-mono">
+
+      <span className="hidden sm:inline text-[9px] text-[#64748b] font-game uppercase tracking-wider">
         {hasTurbo ? 'Unlimited Speed' : 'Hold Click / Space'}
       </span>
     </div>
   );
 };
-

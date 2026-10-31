@@ -20,10 +20,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased overflow-hidden select-none bg-slate-950">
+      <head>
+        <link
+          rel="preload"
+          href="/fonts/game-font.ttf"
+          as="font"
+          type="font/ttf"
+          crossOrigin="anonymous"
+        />
+      </head>
+      <body className="antialiased overflow-hidden select-none bg-[#0a0e1a] text-[#f1f5f9]">
         {children}
       </body>
     </html>
   );
 }
-

@@ -23,10 +23,10 @@ export const GAME_CONFIG = {
   BOOST_MIN_MASS: 50, // Cannot boost below initial base mass
   BOOST_DROP_INTERVAL: 6, // Spawn a food pellet every X boost frames
   
-  // Camera
-  CAMERA_SMOOTHING: 0.1,
-  BASE_ZOOM: 1.0,
-  MIN_ZOOM: 0.38,
+  // Camera (Authentic Slither.io Distance & Dynamic Zoom)
+  CAMERA_SMOOTHING: 0.09,
+  BASE_ZOOM: 0.55,
+  MIN_ZOOM: 0.26,
 
   // Spawning & Population
   MAX_FOOD_COUNT: 2500,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LeaderboardEntry } from '@/game/GameEngine';
 
 interface LeaderboardProps {
@@ -22,71 +22,92 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
   onSelectSnake,
   isSpectating = false,
 }) => {
-  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState<number>(() =>
+    typeof window !== 'undefined' ? window.innerHeight : 800
+  );
 
-  // On mobile, show top 5 unless expanded; on sm+, show full 10
-  const maxMobileEntries = mobileExpanded ? 10 : 5;
-  const isPlayerInDisplayed = entries
-    .slice(0, maxMobileEntries)
-    .some((e) => e.isPlayer);
+  useEffect(() => {
+    const updateDimensions = () => {
+      setViewportHeight(window.innerHeight);
+    };
+
+    updateDimensions();
+
+    window.addEventListener('resize', updateDimensions);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateDimensions);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateDimensions);
+      }
+    };
+  }, []);
+
+  // Compute maximum entries dynamically based on screen height
+  // Short screens (landscape mobile / small height < 380px): 5 entries so each row is crisp, legible, and stays strictly within bounds
+  // Medium screens (< 600px): 7 entries
+  // Tall screens (>= 600px): full 10 entries
+  let maxVisibleEntries = 10;
+  if (viewportHeight < 380) {
+    maxVisibleEntries = 5;
+  } else if (viewportHeight < 600) {
+    maxVisibleEntries = 7;
+  }
+
+  const displayedEntries = entries.slice(0, maxVisibleEntries);
+  const isPlayerInDisplayed = displayedEntries.some((e) => e.isPlayer);
 
   return (
     <div
-      className={`w-[134px] sm:w-[170px] bg-black/35 hover:bg-black/60 backdrop-blur-[2px] rounded-lg border border-white/10 p-1 sm:p-2 shadow-xl select-none transition-all ${
-        isSpectating ? 'pointer-events-auto border-cyan-500/30' : 'pointer-events-none'
+      style={{
+        // Mathematical 1/8 Screen Area: (0.35355 * W) * (0.35355 * H) = 0.125 * (W * H) = 1/8 Area
+        width: '35.355vw',
+        height: '35.355vh',
+        fontSize: 'clamp(6.5px, min(1.1vw, 2.3vh), 12px)',
+      }}
+      className={`bg-[#0a0e1a]/90 backdrop-blur-md rounded-none rounded-br-lg p-1 sm:p-1.5 select-none flex flex-col justify-between overflow-hidden border-0 ${
+        isSpectating ? 'pointer-events-auto' : 'pointer-events-none'
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between pb-0.5 border-b border-white/10 mb-0.5">
-        <div className="flex items-center gap-1">
-          <span className="text-[9px] sm:text-[10px] font-bold tracking-wider uppercase text-slate-300">
-            Top Snakes
-          </span>
-          {/* Subtle mobile expand toggle */}
-          <button
-            onClick={() => setMobileExpanded(!mobileExpanded)}
-            className="sm:hidden pointer-events-auto text-[8px] text-cyan-400/80 hover:text-cyan-300 px-0.5"
-            title={mobileExpanded ? 'Show top 5' : 'Show top 10'}
-          >
-            {mobileExpanded ? '▲' : '▼'}
-          </button>
-        </div>
+      <div className="flex items-center justify-between pb-[0.2vh] border-b border-white/5 mb-[0.2vh] shrink-0 text-[0.9em] font-game font-bold uppercase tracking-tight text-[#64748b] leading-tight">
+        <span>Top Snakes</span>
 
         {isSpectating ? (
-          <span className="text-[8px] sm:text-[9px] font-medium text-cyan-400 bg-cyan-950/60 px-1 py-0.2 rounded border border-cyan-800/40">
+          <span className="text-[0.8em] font-game font-bold uppercase tracking-tight text-blue-400 bg-blue-950/60 px-1 py-0.2 rounded">
             Spec
           </span>
         ) : playerRank ? (
-          <span className="text-[9px] sm:text-[10px] font-mono font-bold text-cyan-400">
+          <span className="text-[0.95em] font-game font-bold text-blue-400">
             #{playerRank}
           </span>
         ) : null}
       </div>
 
-      {/* Entries List */}
-      <div className="space-y-[1px]">
-        {entries.map((entry, index) => {
+      {/* Entries List: flex-1 min-h-0 ensures it fills the container evenly without overflowing */}
+      <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden py-[0.1vh]">
+        {displayedEntries.map((entry, index) => {
           const rank = index + 1;
           const isSelected = isSpectating && spectatingSnakeId === entry.id;
 
-          // Responsive visibility: hide ranks > 5 on mobile unless expanded
-          const isHiddenOnMobile = index >= 5 && !mobileExpanded;
-
-          let nameColor = 'text-slate-200';
-          let dotColor = '#94a3b8';
+          let nameColor = 'text-[#94a3b8]';
+          let dotColor = '#64748b';
 
           if (entry.isPlayer) {
-            nameColor = 'text-cyan-300 font-bold';
-            dotColor = '#38bdf8';
+            nameColor = 'text-blue-400 font-bold';
+            dotColor = '#3b82f6';
           } else if (entry.tier === 'easy') {
-            nameColor = 'text-emerald-300';
-            dotColor = '#4ade80';
+            nameColor = 'text-emerald-400';
+            dotColor = '#10b981';
           } else if (entry.tier === 'medium') {
-            nameColor = 'text-amber-300';
-            dotColor = '#facc15';
+            nameColor = 'text-amber-400';
+            dotColor = '#f59e0b';
           } else if (entry.tier === 'hard') {
-            nameColor = 'text-rose-400 font-semibold';
-            dotColor = '#f87171';
+            nameColor = 'text-red-400 font-semibold';
+            dotColor = '#ef4444';
           }
 
           return (
@@ -96,31 +117,33 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                 if (onSelectSnake) onSelectSnake(entry.id);
               }}
               title={isSpectating ? `Spectate ${entry.name}` : undefined}
-              className={`items-center justify-between px-1 py-[1px] rounded text-[10px] sm:text-[11px] leading-tight transition-colors ${
-                isHiddenOnMobile ? 'hidden sm:flex' : 'flex'
-              } ${
+              className={`flex-1 min-h-0 items-center justify-between px-1 rounded leading-none transition-colors flex ${
                 isSelected
-                  ? 'bg-cyan-500/25 border border-cyan-400/50 text-white font-bold'
+                  ? 'bg-blue-600/30 text-white font-bold'
                   : entry.isPlayer
-                  ? 'bg-cyan-950/40 border border-cyan-500/20'
+                  ? 'bg-blue-950/50'
                   : isSpectating
-                  ? 'hover:bg-white/10 cursor-pointer'
+                  ? 'hover:bg-white/5 cursor-pointer'
                   : ''
               }`}
             >
-              <div className="flex items-center gap-1 truncate">
-                <span className="w-3 sm:w-3.5 text-slate-400 text-[9px] sm:text-[10px] font-mono text-right flex-shrink-0">
+              <div className="flex items-center gap-1 min-w-0 flex-1">
+                <span className="shrink-0 text-[#64748b] font-game font-bold text-right min-w-[1.2em]">
                   {rank}.
                 </span>
                 <span
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: dotColor }}
+                  className="shrink-0 rounded-full"
+                  style={{
+                    width: 'clamp(3px, min(0.35vw, 0.7vh), 5px)',
+                    height: 'clamp(3px, min(0.35vw, 0.7vh), 5px)',
+                    backgroundColor: dotColor,
+                  }}
                 />
-                <span className={`truncate max-w-[50px] sm:max-w-[76px] ${nameColor}`}>
+                <span className={`truncate flex-1 font-game tracking-tight ${nameColor}`}>
                   {entry.name}
                 </span>
               </div>
-              <span className="font-mono text-[9px] sm:text-[10px] text-slate-300 font-medium pl-1 flex-shrink-0">
+              <span className="shrink-0 font-game text-[#f1f5f9] font-medium pl-1 tabular-nums text-right">
                 {entry.score.toLocaleString()}
               </span>
             </div>
@@ -130,18 +153,24 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
 
       {/* If Player is outside visible top list, show player's rank at the bottom */}
       {!isSpectating && !isPlayerInDisplayed && playerRank && (
-        <div className="mt-0.5 pt-0.5 border-t border-white/10 flex items-center justify-between px-1 py-[1px] rounded bg-cyan-950/40 border border-cyan-500/20 text-[10px] sm:text-[11px]">
-          <div className="flex items-center gap-1 truncate">
-            <span className="w-3 sm:w-3.5 text-cyan-400 text-[9px] sm:text-[10px] font-mono text-right flex-shrink-0">
+        <div className="mt-[0.2vh] pt-[0.2vh] border-t border-white/5 shrink-0 flex items-center justify-between px-1 py-[0.2vh] rounded bg-blue-950/50 leading-none">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <span className="shrink-0 text-blue-400 font-game font-bold text-right min-w-[1.2em]">
               #{playerRank}
             </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
-            <span className="truncate max-w-[50px] sm:max-w-[76px] text-cyan-300 font-bold">
+            <span
+              className="shrink-0 rounded-full bg-blue-400"
+              style={{
+                width: 'clamp(3px, min(0.35vw, 0.7vh), 5px)',
+                height: 'clamp(3px, min(0.35vw, 0.7vh), 5px)',
+              }}
+            />
+            <span className="truncate flex-1 text-blue-300 font-game font-bold tracking-tight">
               {playerName}
             </span>
           </div>
           {playerScore !== undefined && (
-            <span className="font-mono text-[9px] sm:text-[10px] text-cyan-300 font-medium pl-1 flex-shrink-0">
+            <span className="shrink-0 font-game text-blue-400 font-medium pl-1 tabular-nums text-right">
               {playerScore.toLocaleString()}
             </span>
           )}

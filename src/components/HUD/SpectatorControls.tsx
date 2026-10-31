@@ -2,6 +2,19 @@
 
 import React from 'react';
 import { Snake } from '@/game/entities/Snake';
+import {
+  Eye,
+  Camera,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  Plus,
+  Swords,
+  Home,
+  Info,
+  Zap,
+} from 'lucide-react';
 
 interface SpectatorControlsProps {
   spectatedSnake: Snake | null;
@@ -36,95 +49,100 @@ export const SpectatorControls: React.FC<SpectatorControlsProps> = ({
 
   // Difficulty Tier styling for spectated snake
   let tierBadge = null;
-  let nameColor = 'text-cyan-300';
+  let nameColor = 'text-blue-400';
   if (spectatedSnake) {
     if (spectatedSnake.tier === 'easy') {
       nameColor = 'text-emerald-400';
       tierBadge = (
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-bold uppercase">
-          🟢 Easy Bot
+        <span className="text-[10px] font-game font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-400">
+          Easy Bot
         </span>
       );
     } else if (spectatedSnake.tier === 'medium') {
-      nameColor = 'text-amber-300';
+      nameColor = 'text-amber-400';
       tierBadge = (
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-950/70 border border-amber-500/40 text-amber-300 font-bold uppercase">
-          🟡 Medium Bot
+        <span className="text-[10px] font-game font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-500/30 text-amber-400">
+          Medium Bot
         </span>
       );
     } else if (spectatedSnake.tier === 'hard') {
-      nameColor = 'text-rose-400';
+      nameColor = 'text-red-400';
       tierBadge = (
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-950/70 border border-rose-500/40 text-rose-300 font-bold uppercase animate-pulse">
-          🔴 Hard Bot (Apex)
+        <span className="text-[10px] font-game font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-950/60 border border-red-500/30 text-red-400">
+          Apex Bot
         </span>
       );
     }
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-6 z-30 pointer-events-none flex flex-col items-center gap-3 px-4">
+    <div className="fixed inset-x-0 bottom-4 z-30 pointer-events-none flex flex-col items-center gap-2.5 px-4">
       {/* Top Floating Spectator Status & Controls */}
-      <div className="pointer-events-auto bg-slate-900/90 border border-slate-700/80 rounded-2xl p-2.5 sm:p-3 shadow-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 max-w-4xl w-full">
+      <div className="pointer-events-auto bg-[#0a0e1a]/95 border border-[#1e293b] rounded-2xl p-2.5 sm:p-3 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 max-w-4xl w-full">
         {/* Left: Mode Badge & Target Info */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-indigo-950/80 border border-indigo-700/60 px-3 py-1.5 rounded-xl shadow-inner">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping inline-block" />
-            <span className="text-xs font-black tracking-wider uppercase text-indigo-300">
-              SPECTATING
+          <div className="flex items-center gap-2 bg-blue-950/40 border border-blue-800/40 px-2.5 py-1 rounded-xl">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-xs font-game font-bold tracking-wider uppercase text-blue-400 flex items-center gap-1">
+              <Eye className="w-3.5 h-3.5" />
+              Spectating
             </span>
           </div>
 
           {isFreeCam ? (
-            <div className="flex items-center gap-2 text-xs text-slate-300">
-              <span className="text-amber-400 font-bold">🕊️ Free Camera</span>
-              <span className="text-[11px] text-slate-400 hidden sm:inline">
+            <div className="flex items-center gap-1.5 text-xs text-[#94a3b8]">
+              <Camera className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-amber-400 font-game font-bold">Free Camera</span>
+              <span className="text-[11px] text-[#64748b] hidden sm:inline">
                 (Click + drag canvas or WASD to pan)
               </span>
             </div>
           ) : spectatedSnake ? (
-            <div className="flex items-center gap-2.5">
-              <span className={`text-sm font-black ${nameColor} max-w-[140px] sm:max-w-[180px] truncate`}>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-game font-bold ${nameColor} max-w-[130px] sm:max-w-[170px] truncate`}>
                 {spectatedSnake.name}
               </span>
               {tierBadge}
               {spectatedSnake.aiBrain && (
-                <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold">
-                  <span className="px-1.5 py-0.5 rounded bg-indigo-950/90 border border-indigo-500/40 text-indigo-300">
+                <div className="flex items-center gap-1 text-[10px] font-game font-bold">
+                  <span className="px-1.5 py-0.5 rounded bg-[#111827] border border-[#1e293b] text-[#94a3b8]">
                     {spectatedSnake.aiBrain.personality?.archetype || 'AI'}
                   </span>
                   <span className={`px-1.5 py-0.5 rounded border ${
                     spectatedSnake.aiBrain.state === 'INTERCEPT'
-                      ? 'bg-rose-950/90 border-rose-500/70 text-rose-300 animate-pulse'
+                      ? 'bg-red-950/80 border-red-600/50 text-red-300'
                       : spectatedSnake.aiBrain.state === 'CIRCLE'
-                      ? 'bg-purple-950/90 border-purple-500/70 text-purple-300'
+                      ? 'bg-purple-950/80 border-purple-600/50 text-purple-300'
                       : spectatedSnake.aiBrain.state === 'SURVIVE' || spectatedSnake.aiBrain.state === 'ESCAPE'
-                      ? 'bg-red-950/90 border-red-500/70 text-red-300 animate-pulse'
+                      ? 'bg-red-950/80 border-red-600/50 text-red-300'
                       : spectatedSnake.aiBrain.state === 'EVADE'
-                      ? 'bg-orange-950/90 border-orange-500/70 text-orange-300'
+                      ? 'bg-orange-950/80 border-orange-600/50 text-orange-300'
                       : spectatedSnake.aiBrain.state === 'COLLECT_FOOD'
-                      ? 'bg-emerald-950/90 border-emerald-500/70 text-emerald-300'
+                      ? 'bg-emerald-950/80 border-emerald-600/50 text-emerald-300'
                       : spectatedSnake.aiBrain.state === 'HUNT'
-                      ? 'bg-yellow-950/90 border-yellow-500/70 text-yellow-300'
-                      : 'bg-slate-800 border-slate-700 text-slate-300'
+                      ? 'bg-yellow-950/80 border-yellow-600/50 text-yellow-300'
+                      : 'bg-[#111827] border-[#1e293b] text-[#94a3b8]'
                   }`}>
                     {spectatedSnake.aiBrain.state}
                   </span>
                   {spectatedSnake.isBoosting && (
-                    <span className="text-amber-400 font-extrabold animate-pulse">⚡BOOST</span>
+                    <span className="text-amber-400 font-bold flex items-center gap-0.5">
+                      <Zap className="w-3 h-3 fill-amber-400" />
+                      Boost
+                    </span>
                   )}
                 </div>
               )}
-              <div className="hidden md:flex items-center gap-2 text-[11px] font-mono text-slate-400 ml-1">
-                <span>Score: <strong className="text-slate-200">{spectatedSnake.score}</strong></span>
+              <div className="hidden md:flex items-center gap-2 text-[11px] font-game text-[#64748b] ml-1">
+                <span>Score: <strong className="text-[#f1f5f9]">{spectatedSnake.score}</strong></span>
                 <span>•</span>
-                <span>Length: <strong className="text-slate-200">{spectatedSnake.segments.length}</strong></span>
+                <span>Length: <strong className="text-[#f1f5f9]">{spectatedSnake.segments.length}</strong></span>
                 <span>•</span>
-                <span>Kills: <strong className="text-amber-300">{spectatedSnake.kills}</strong></span>
+                <span>Kills: <strong className="text-amber-400">{spectatedSnake.kills}</strong></span>
               </div>
             </div>
           ) : (
-            <span className="text-xs text-slate-400 italic">No Target Selected</span>
+            <span className="text-xs text-[#64748b] italic">No Target Selected</span>
           )}
         </div>
 
@@ -132,85 +150,96 @@ export const SpectatorControls: React.FC<SpectatorControlsProps> = ({
         <div className="flex items-center gap-1.5">
           <button
             onClick={onCyclePrev}
-            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 flex items-center justify-center font-bold text-base transition-all shadow-md"
+            className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 text-[#f1f5f9] border border-[#1e293b] flex items-center justify-center transition-colors cursor-pointer"
             title="Previous Snake (Left Arrow or [ )"
           >
-            ‹
+            <ChevronLeft className="w-4 h-4" />
           </button>
 
           <button
             onClick={onToggleFreeCam}
-            className={`px-3 h-9 rounded-xl border text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5 ${
+            className={`px-3 h-8 rounded-lg border text-xs font-game font-bold uppercase tracking-wider transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer ${
               isFreeCam
-                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 hover:bg-amber-500/30'
-                : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                ? 'bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30'
+                : 'bg-white/[0.05] hover:bg-white/[0.1] border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9]'
             }`}
             title="Toggle Free Cam (Key F)"
           >
-            {isFreeCam ? '🔒 Lock Follow' : '🕊️ Free Cam'}
+            {isFreeCam ? (
+              <>
+                <Lock className="w-3.5 h-3.5" />
+                Follow
+              </>
+            ) : (
+              <>
+                <Camera className="w-3.5 h-3.5" />
+                Free Cam
+              </>
+            )}
           </button>
 
           <button
             onClick={onCycleNext}
-            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 flex items-center justify-center font-bold text-base transition-all shadow-md"
+            className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 text-[#f1f5f9] border border-[#1e293b] flex items-center justify-center transition-colors cursor-pointer"
             title="Next Snake (Right Arrow or ] )"
           >
-            ›
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
         {/* Right: Zoom Controls & Arena Actions */}
         <div className="flex items-center gap-2">
           {/* Zoom In / Out Bar */}
-          <div className="flex items-center gap-1 bg-slate-950/70 border border-slate-800 rounded-xl px-1.5 py-1">
+          <div className="flex items-center gap-1 bg-[#111827] border border-[#1e293b] rounded-lg px-1.5 py-1">
             <button
               onClick={onZoomOut}
-              className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-all"
+              className="w-6 h-6 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[#94a3b8] hover:text-[#f1f5f9] flex items-center justify-center transition-colors cursor-pointer"
               title="Zoom Out (Mouse Wheel Down)"
             >
-              −
+              <Minus className="w-3 h-3" />
             </button>
             <button
               onClick={onResetZoom}
-              className="px-2 py-0.5 text-[11px] font-mono text-cyan-300 font-bold hover:text-white transition-colors"
+              className="px-2 py-0.5 text-[11px] font-game text-blue-400 font-bold hover:text-white transition-colors cursor-pointer"
               title="Reset Zoom to 100%"
             >
               {zoomPercent}%
             </button>
             <button
               onClick={onZoomIn}
-              className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-all"
+              className="w-6 h-6 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[#94a3b8] hover:text-[#f1f5f9] flex items-center justify-center transition-colors cursor-pointer"
               title="Zoom In (Mouse Wheel Up)"
             >
-              +
+              <Plus className="w-3 h-3" />
             </button>
           </div>
 
           {/* Join Match Button */}
           <button
             onClick={onJoinArena}
-            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:brightness-110 active:scale-95 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-game font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
             title="Spawn into arena now"
           >
-            <span>⚔️ Join Arena</span>
+            <Swords className="w-3.5 h-3.5" />
+            <span>Join Arena</span>
           </button>
 
           {/* Main Menu Button */}
           <button
             onClick={onReturnToMenu}
-            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white border border-slate-700 flex items-center justify-center text-sm transition-all"
+            className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 text-[#94a3b8] hover:text-[#f1f5f9] border border-[#1e293b] flex items-center justify-center transition-colors cursor-pointer"
             title="Return to Main Menu"
           >
-            🏠
+            <Home className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {/* Helper Banner */}
-      <div className="text-[11px] text-slate-400 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 px-3 py-1 rounded-full shadow-sm flex items-center gap-2">
-        <span>💡 <strong>Tip:</strong> Click any snake on the Leaderboard to spectate them immediately. Use <strong>Mouse Wheel</strong> to zoom out and view the full arena.</span>
+      <div className="text-[11px] text-[#64748b] bg-[#0a0e1a]/80 backdrop-blur-md border border-[#1e293b] px-3.5 py-1 rounded-full flex items-center gap-2">
+        <Info className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+        <span>Click any snake on the Leaderboard to spectate them. Use <strong>Mouse Wheel</strong> to zoom.</span>
       </div>
     </div>
   );
 };
-

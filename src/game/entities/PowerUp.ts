@@ -7,6 +7,7 @@ export interface PowerUpConfig {
   type: PowerUpType;
   label: string;
   icon: string;
+  imageSrc: string;
   color: string;
   glowColor: string;
   duration: number;
@@ -17,6 +18,7 @@ export const POWERUP_CONFIGS: Record<PowerUpType, PowerUpConfig> = {
     type: 'magnet',
     label: 'Magnet',
     icon: '🧲',
+    imageSrc: '/assets/powerups/magnet.webp',
     color: '#38bdf8',
     glowColor: 'rgba(56, 189, 248, 0.8)',
     duration: GAME_CONFIG.MAGNET_DURATION,
@@ -25,6 +27,7 @@ export const POWERUP_CONFIGS: Record<PowerUpType, PowerUpConfig> = {
     type: 'multiplier',
     label: '2x Mass',
     icon: '✖️2',
+    imageSrc: '/assets/powerups/multiplier.webp',
     color: '#f59e0b',
     glowColor: 'rgba(245, 158, 11, 0.8)',
     duration: GAME_CONFIG.MULTIPLIER_DURATION,
@@ -33,6 +36,7 @@ export const POWERUP_CONFIGS: Record<PowerUpType, PowerUpConfig> = {
     type: 'turbo',
     label: 'Turbo Rush',
     icon: '⚡',
+    imageSrc: '/assets/powerups/turbo.webp',
     color: '#ef4444',
     glowColor: 'rgba(239, 68, 68, 0.8)',
     duration: GAME_CONFIG.SPEED_DURATION,
@@ -41,6 +45,7 @@ export const POWERUP_CONFIGS: Record<PowerUpType, PowerUpConfig> = {
     type: 'ghost',
     label: 'Ghost Phase',
     icon: '👻',
+    imageSrc: '/assets/powerups/ghost.webp',
     color: '#a855f7',
     glowColor: 'rgba(168, 85, 247, 0.8)',
     duration: GAME_CONFIG.GHOST_DURATION,

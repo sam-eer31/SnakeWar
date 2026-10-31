@@ -5,6 +5,7 @@ import { GameEngine, LeaderboardEntry, PlayerStats, GameOverStats } from '@/game
 import { Snake } from '@/game/entities/Snake';
 import { loadSettings, saveSettings, GameSettings, DEFAULT_SETTINGS } from '@/game/config/settings';
 import { ArenaSessionConfig, DEFAULT_SESSION_CONFIG } from '@/game/config/session';
+import { GAME_CONFIG } from '@/game/config/constants';
 import { ScoreDisplay } from './HUD/ScoreDisplay';
 import { Leaderboard } from './HUD/Leaderboard';
 import { Minimap } from './HUD/Minimap';
@@ -20,6 +21,7 @@ import { MatchSetupModal } from './Menus/MatchSetupModal';
 import { PublicArenasModal } from './Menus/PublicArenasModal';
 import { SnakeWarLoader } from './UI/SnakeWarLoader';
 import { NetworkClient } from '@/game/network/NetworkClient';
+import { Home, Settings as SettingsIcon, Globe } from 'lucide-react';
 
 type GameState = 'menu' | 'playing' | 'spectating' | 'gameover';
 
@@ -87,13 +89,16 @@ export const GameView: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Handle full screen resize
+    // Handle full screen resize with Retina / High-DPI support
     const handleResize = () => {
       if (!canvas) return;
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
       if (engineRef.current) {
-        engineRef.current.resize(window.innerWidth, window.innerHeight);
+        engineRef.current.resize(window.innerWidth, window.innerHeight, dpr);
       }
     };
 
@@ -226,10 +231,10 @@ export const GameView: React.FC = () => {
         } else if (e.code === 'KeyS' || e.code === 'ArrowDown') {
           engineRef.current.camera.panFreeCam(0, -panSpeed);
           setIsFreeCam(true);
-        } else if (e.code === 'KeyA') {
+        } else if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
           engineRef.current.camera.panFreeCam(panSpeed, 0);
           setIsFreeCam(true);
-        } else if (e.code === 'KeyD') {
+        } else if (e.code === 'KeyD' || e.code === 'ArrowRight') {
           engineRef.current.camera.panFreeCam(-panSpeed, 0);
           setIsFreeCam(true);
         } else if (e.code === 'BracketLeft') {
@@ -246,8 +251,8 @@ export const GameView: React.FC = () => {
           engineRef.current.camera.adjustManualZoom(0.85);
           setCurrentZoom(engineRef.current.camera.targetZoom);
         } else if (e.code === 'Digit0' || e.code === 'Numpad0') {
-          engineRef.current.camera.setManualZoomDirect(1.0);
-          setCurrentZoom(1.0);
+          engineRef.current.camera.setManualZoomDirect(GAME_CONFIG.BASE_ZOOM);
+          setCurrentZoom(GAME_CONFIG.BASE_ZOOM);
         }
       }
     };
@@ -261,9 +266,36 @@ export const GameView: React.FC = () => {
       }
     };
 
+    const handleTouchStart = (e: TouchEvent) => {
+      if (gameState === 'spectating' && e.touches.length === 1) {
+        isDraggingRef.current = true;
+        lastMousePosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (gameState === 'spectating' && isDraggingRef.current && e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - lastMousePosRef.current.x;
+        const dy = touch.clientY - lastMousePosRef.current.y;
+        lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
+        engineRef.current?.camera.panFreeCam(dx, dy);
+        setIsFreeCam(true);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (gameState === 'spectating') {
+        isDraggingRef.current = false;
+      }
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd);
     window.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('wheel', handleWheel, { passive: false });
     window.addEventListener('keydown', handleKeyDown);
@@ -273,6 +305,9 @@ export const GameView: React.FC = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('keydown', handleKeyDown);
@@ -360,8 +395,8 @@ export const GameView: React.FC = () => {
 
   const handleResetZoom = useCallback(() => {
     if (!engineRef.current) return;
-    engineRef.current.camera.setManualZoomDirect(1.0);
-    setCurrentZoom(1.0);
+    engineRef.current.camera.setManualZoomDirect(GAME_CONFIG.BASE_ZOOM);
+    setCurrentZoom(GAME_CONFIG.BASE_ZOOM);
   }, []);
 
   const handleSelectSnake = useCallback((snakeId: string) => {
@@ -424,52 +459,47 @@ export const GameView: React.FC = () => {
 
       {/* In-Game Playing HUD */}
       {gameState === 'playing' && (
-        <div className="fixed inset-0 pointer-events-none p-1.5 sm:p-2.5 flex flex-col justify-between z-20">
-          {/* Top Bar: Minimap & Score on TOP LEFT, Small Leaderboard on TOP RIGHT */}
-          <div className="flex justify-between items-start w-full">
-            {/* Top Left: Minimap Radar on left, ScoreDisplay right beside it */}
-            <div className="flex items-start gap-1 sm:gap-1.5 pointer-events-none">
-              <div className="flex flex-col items-center flex-shrink-0">
-                {settings.showMinimap && (
-                  <Minimap
-                    playerSnake={engineRef.current?.playerSnake || null}
-                    allSnakes={engineRef.current?.allSnakes || []}
-                    powerUps={engineRef.current?.powerUps || []}
-                    arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
-                  />
-                )}
-                {onlineServerInfo && (
-                  <div className="mt-1 bg-black/60 backdrop-blur-md border border-emerald-500/30 rounded-lg px-1.5 py-0.5 text-[8px] font-mono text-emerald-300 flex items-center gap-1 shadow whitespace-nowrap">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>{onlineServerInfo.roomId.toUpperCase()} • {onlineServerInfo.ping}ms</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Score Display (Right side of map, stuck to top) */}
-              <div className="pt-0.5">
-                <ScoreDisplay stats={playerStats} highScore={highScore} />
-              </div>
-            </div>
-
-            {/* Top Right: Slither.io-style Compact Leaderboard */}
-            <div>
-              <Leaderboard
-                entries={leaderboard}
-                playerRank={playerStats?.rank}
-                playerScore={playerStats?.score}
-                playerName={settings.playerName}
-              />
-            </div>
+        <div className="fixed inset-0 pointer-events-none z-20">
+          {/* Extreme Top Left Corner: Compact Leaderboard with No Gap */}
+          <div className="absolute top-0 left-0 z-30 pointer-events-none">
+            <Leaderboard
+              entries={leaderboard}
+              playerRank={playerStats?.rank}
+              playerScore={playerStats?.score}
+              playerName={settings.playerName}
+            />
           </div>
 
-          {/* Active Power-Ups Badges (under minimap on left) */}
-          <div className="absolute top-18 sm:top-22 left-1.5 sm:left-2.5">
+          {/* Top Center: Clean Score Display */}
+          <div className="absolute top-1.5 sm:top-2.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <ScoreDisplay stats={playerStats} highScore={highScore} />
+          </div>
+
+          {/* Top Right: Minimap Radar and Server Info */}
+          <div className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 z-20 flex flex-col items-end pointer-events-none">
+            {settings.showMinimap && (
+              <Minimap
+                playerSnake={engineRef.current?.playerSnake || null}
+                allSnakes={engineRef.current?.allSnakes || []}
+                powerUps={engineRef.current?.powerUps || []}
+                arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
+              />
+            )}
+            {onlineServerInfo && (
+              <div className="mt-1 bg-black/60 backdrop-blur-md border border-emerald-500/30 rounded-lg px-1.5 py-0.5 text-[8px] font-mono text-emerald-300 flex items-center gap-1 shadow whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{onlineServerInfo.roomId.toUpperCase()} • {onlineServerInfo.ping}ms</span>
+              </div>
+            )}
+          </div>
+
+          {/* Active Power-Ups Badges (under leaderboard on left) */}
+          <div className="absolute top-[36.5vh] left-1.5 sm:left-2">
             <PowerUpStatus items={playerStats?.activePowerUps || []} />
           </div>
 
           {/* Bottom Bar: FPS on BOTTOM LEFT, Boost Gauge Center, Controls on Right */}
-          <div className="flex justify-between items-end w-full">
+          <div className="absolute inset-x-0 bottom-0 p-1.5 sm:p-2.5 flex justify-between items-end w-full">
             {/* Bottom Left: FPS Counter */}
             <div className="flex items-center min-w-[70px]">
               {settings.showFps && playerStats && (
@@ -494,17 +524,17 @@ export const GameView: React.FC = () => {
             <div className="flex items-center gap-2 pointer-events-auto min-w-[70px] justify-end">
               <button
                 onClick={handleReturnToMenu}
-                className="w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-slate-300 hover:text-white flex items-center justify-center text-sm shadow-xl transition-colors"
+                className="w-9 h-9 rounded-xl bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95"
                 title="Return to Menu"
               >
-                🏠
+                <Home className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setShowSettings(true)}
-                className="w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-slate-300 hover:text-white flex items-center justify-center text-sm shadow-xl transition-colors"
+                className="w-9 h-9 rounded-xl bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95"
                 title="Settings"
               >
-                ⚙️
+                <SettingsIcon className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -513,47 +543,44 @@ export const GameView: React.FC = () => {
 
       {/* Spectator Mode HUD */}
       {gameState === 'spectating' && (
-        <div className="fixed inset-0 pointer-events-none p-2 sm:p-3.5 flex flex-col justify-between z-20">
-          {/* Top Bar: Minimap & Arena Info on TOP LEFT, Small Leaderboard on TOP RIGHT */}
-          <div className="flex justify-between items-start w-full">
-            {/* Top Left: Minimap Radar and Arena Overview */}
-            <div className="flex items-start gap-2 pointer-events-auto">
-              {settings.showMinimap && (
-                <Minimap
-                  playerSnake={spectatedSnake}
-                  allSnakes={engineRef.current?.allSnakes || []}
-                  powerUps={engineRef.current?.powerUps || []}
-                  arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
-                />
-              )}
-              <div className="bg-black/40 backdrop-blur-[2px] border border-white/10 rounded-lg px-2 py-1 shadow-lg text-[10px] text-slate-300 flex flex-col gap-0.5">
-                <div className="flex items-center gap-1 font-bold text-slate-200">
-                  <span>🌐</span>
-                  <span>Arena: {sessionConfig.arenaRadius * 2}m</span>
-                </div>
-                <div className="text-slate-300">
-                  Snakes: <strong className="text-cyan-400">{engineRef.current?.allSnakes.length || 0}</strong>
-                </div>
-                <div className="text-slate-400 text-[9px]">
-                  Difficulty: <strong className="text-amber-300 capitalize">{sessionConfig.botDifficulty}</strong>
-                </div>
-                {onlineServerInfo && (
-                  <div className="text-emerald-400 text-[9px] font-mono flex items-center gap-1 mt-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>PUBLIC ARENA • {onlineServerInfo.ping}ms</span>
-                  </div>
-                )}
-              </div>
-            </div>
+        <div className="fixed inset-0 pointer-events-none z-20">
+          {/* Extreme Top Left Corner: Clickable Leaderboard with No Gap */}
+          <div className="absolute top-0 left-0 z-30 pointer-events-auto">
+            <Leaderboard
+              entries={leaderboard}
+              spectatingSnakeId={spectatedSnake?.id}
+              onSelectSnake={handleSelectSnake}
+              isSpectating={true}
+            />
+          </div>
 
-            {/* Top Right: Slither.io-style Compact Clickable Leaderboard */}
-            <div>
-              <Leaderboard
-                entries={leaderboard}
-                spectatingSnakeId={spectatedSnake?.id}
-                onSelectSnake={handleSelectSnake}
-                isSpectating={true}
+          {/* Top Right: Minimap Radar and Arena Overview */}
+          <div className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 z-20 flex items-start gap-2 pointer-events-auto">
+            {settings.showMinimap && (
+              <Minimap
+                playerSnake={spectatedSnake}
+                allSnakes={engineRef.current?.allSnakes || []}
+                powerUps={engineRef.current?.powerUps || []}
+                arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
               />
+            )}
+            <div className="bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] rounded-xl px-2.5 py-1.5 text-[10px] text-[#94a3b8] flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5 font-game font-bold text-[#f1f5f9] uppercase tracking-wider">
+                <Globe className="w-3.5 h-3.5 text-blue-400" />
+                <span>Arena: {sessionConfig.arenaRadius * 2}m</span>
+              </div>
+              <div className="text-[#94a3b8] font-game">
+                Snakes: <strong className="text-blue-400">{engineRef.current?.allSnakes.length || 0}</strong>
+              </div>
+              <div className="text-[#64748b] font-game text-[9px] uppercase tracking-wider">
+                Difficulty: <strong className="text-amber-400 capitalize">{sessionConfig.botDifficulty}</strong>
+              </div>
+              {onlineServerInfo && (
+                <div className="text-emerald-400 text-[9px] font-game uppercase tracking-wider flex items-center gap-1 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>PUBLIC ARENA • {onlineServerInfo.ping}ms</span>
+                </div>
+              )}
             </div>
           </div>
 
