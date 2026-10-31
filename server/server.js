@@ -19,9 +19,9 @@ const PORT = process.env.PORT || 3001;
 const ARENA_RADIUS = 4500; // Massive 9,000px diameter arena
 const TICK_RATE = 30; // 30 Hz server ticks
 const TICK_MS = 1000 / TICK_RATE;
-const BASE_SPEED = 4.2;
-const BOOST_SPEED = 7.8;
-const BASE_TURN_SPEED = 0.085;
+const BASE_SPEED = 2.85;
+const BOOST_SPEED = 5.27;
+const BASE_TURN_SPEED = 0.075;
 const MAX_RADIUS = 52;
 const BASE_MASS = 50;
 

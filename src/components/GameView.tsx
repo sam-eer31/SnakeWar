@@ -351,6 +351,7 @@ export const GameView: React.FC = () => {
   const handleStartGame = useCallback(
     (overrideConfig?: ArenaSessionConfig) => {
       if (!engineRef.current) return;
+      engineRef.current.camera.resetManualZoom();
       const cfg = overrideConfig || sessionConfig;
       setSessionConfig(cfg);
       setShowMatchSetup(false);
@@ -389,6 +390,7 @@ export const GameView: React.FC = () => {
   // Join match from spectator mode
   const handleJoinArenaFromSpectator = useCallback(() => {
     if (!engineRef.current) return;
+    engineRef.current.camera.resetManualZoom();
     setGameState('playing');
     engineRef.current.joinArenaAsPlayer(settings.playerName, settings.selectedSkinId);
   }, [settings.playerName, settings.selectedSkinId]);
@@ -442,6 +444,7 @@ export const GameView: React.FC = () => {
   const handleReturnToMenu = useCallback(() => {
     if (engineRef.current) {
       engineRef.current.stop();
+      engineRef.current.camera.resetManualZoom();
     }
     setOnlineServerInfo(null);
     setGameState('menu');

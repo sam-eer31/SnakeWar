@@ -68,7 +68,9 @@ export class Camera {
 
   resetManualZoom(): void {
     this.hasManualZoom = false;
+    this.isFreeCam = false;
     this.targetZoom = GAME_CONFIG.BASE_ZOOM;
+    this.zoom = GAME_CONFIG.BASE_ZOOM;
   }
 
   shake(intensity: number): void {

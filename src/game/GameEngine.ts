@@ -174,6 +174,7 @@ export class GameEngine {
 
     this.isSpectating = false;
     this.spectateTargetId = null;
+    this.camera.resetManualZoom();
     this.gameLoop.start();
   }
 
@@ -224,6 +225,7 @@ export class GameEngine {
       });
 
       if (!isSpectator && data.myId) {
+        this.camera.resetManualZoom();
         this.playerSnake = this.allSnakes.find((s) => s.id === data.myId) || null;
         if (this.playerSnake) {
           this.camera.position.set(this.playerSnake.position.x, this.playerSnake.position.y);
@@ -398,11 +400,9 @@ export class GameEngine {
     this.allSnakes.push(this.playerSnake);
     this.isSpectating = false;
     this.spectateTargetId = null;
-    this.camera.isFreeCam = false;
-    this.camera.hasManualZoom = false;
+    this.camera.resetManualZoom();
     this.camera.position.set(spawnX, spawnY);
     this.camera.target.set(spawnX, spawnY);
-    this.camera.setTargetZoom(GAME_CONFIG.BASE_ZOOM);
     this.onSpectateChange?.(this.playerSnake, false);
   }
 

@@ -6,14 +6,14 @@ export const GAME_CONFIG = {
   WORLD_SIZE: 9000, // World diameter/dimension
   ARENA_RADIUS: 4500, // Circular arena radius (Massive Slither Arena)
 
-  // Snake Physics & Sizing
+  // Snake Physics & Sizing (Authentic Slither.io / Worm.io pacing)
   INITIAL_SNAKE_LENGTH: 15,
   INITIAL_RADIUS: 14,
   MAX_RADIUS: 52, // Standard Slither max thickness
-  SEGMENT_DISTANCE: 7, // Distance between body segments
-  BASE_SPEED: 4.2, // Base forward velocity
-  BOOST_SPEED_MULTIPLIER: 1.85, // Velocity when boosting
-  BASE_TURN_SPEED: 0.08, // Radians per frame turn rate
+  SEGMENT_DISTANCE: 5.8, // Distance between body segments
+  BASE_SPEED: 2.85, // Authentic Slither/Worm.io base forward velocity
+  BOOST_SPEED_MULTIPLIER: 1.85, // Velocity when boosting (approx 5.28)
+  BASE_TURN_SPEED: 0.075, // Radians per frame turn rate
   MIN_TURN_SPEED: 0.035, // Turn rate at maximum size
   
   // Growth & Mass (Standard Slither Standards)
