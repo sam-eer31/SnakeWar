@@ -12,6 +12,8 @@ export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
   public settings: GameSettings;
   public arenaRadius: number = GAME_CONFIG.ARENA_RADIUS;
+  private foodBuckets: Map<string, number[]> = new Map();
+  private highlightCoords: number[] = [];
 
   constructor(ctx: CanvasRenderingContext2D, settings: GameSettings) {
     this.ctx = ctx;
@@ -89,7 +91,7 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  // Draw glowing food orbs (spatial grid query + high-performance glossy rendering)
+  // Draw glowing food orbs (spatial grid query + high-performance batched glossy rendering)
   drawFood(foodManager: FoodManager, camera: Camera): void {
     const ctx = this.ctx;
     const enableGlow = this.settings.glowEffects;
@@ -100,6 +102,13 @@ export class CanvasRenderer {
 
     // Query spatial grid instead of looping 2500 map items
     const nearby = foodManager.spatialGrid.queryRadius(camera.position.x, camera.position.y, viewRadius);
+    if (nearby.length === 0) return;
+
+    // Reset buckets without reallocating arrays
+    for (const arr of this.foodBuckets.values()) {
+      arr.length = 0;
+    }
+    this.highlightCoords.length = 0;
 
     for (let i = 0; i < nearby.length; i++) {
       const food = nearby[i].data as FoodItem;
@@ -128,18 +137,45 @@ export class CanvasRenderer {
         ctx.fill();
         ctx.restore();
       } else {
-        // Authentic Slither.io glossy orb: vibrant sphere with shiny highlight
-        ctx.fillStyle = food.color;
-        ctx.beginPath();
-        ctx.arc(screen.x, screen.y, r, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Glossy core reflection (avoids expensive createRadialGradient)
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-        ctx.beginPath();
-        ctx.arc(screen.x - r * 0.28, screen.y - r * 0.28, r * 0.36, 0, Math.PI * 2);
-        ctx.fill();
+        let bucket = this.foodBuckets.get(food.color);
+        if (!bucket) {
+          bucket = [];
+          this.foodBuckets.set(food.color, bucket);
+        }
+        bucket.push(screen.x, screen.y, r);
+        this.highlightCoords.push(screen.x - r * 0.28, screen.y - r * 0.28, r * 0.36);
       }
+    }
+
+    // 1. Render all body colored spheres in batches (one beginPath/fill per color)
+    for (const [color, coords] of this.foodBuckets.entries()) {
+      const len = coords.length;
+      if (len === 0) continue;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (let i = 0; i < len; i += 3) {
+        const x = coords[i];
+        const y = coords[i + 1];
+        const r = coords[i + 2];
+        ctx.moveTo(x + r, y);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+      }
+      ctx.fill();
+    }
+
+    // 2. Render all glossy highlights in ONE SINGLE combined batch
+    const hLen = this.highlightCoords.length;
+    if (hLen > 0) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.beginPath();
+      for (let i = 0; i < hLen; i += 3) {
+        const hx = this.highlightCoords[i];
+        const hy = this.highlightCoords[i + 1];
+        const hr = this.highlightCoords[i + 2];
+        ctx.moveTo(hx + hr, hy);
+        ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+      }
+      ctx.fill();
     }
   }
 
@@ -228,7 +264,7 @@ export class CanvasRenderer {
       ctx.scale(dpr, dpr);
     }
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = 'medium';
 
     this.drawBackground(camera);
     this.drawFood(foodManager, camera);

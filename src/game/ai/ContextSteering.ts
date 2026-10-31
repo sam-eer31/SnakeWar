@@ -128,26 +128,31 @@ export class ContextSteeringEngine {
 
         // Bounding reach check: skip snake if entirely outside view
         if (!isSelf) {
-          const maxReach = Math.min(3200, other.segments.length * 11 + 100);
-          if (head.dist(other.position) > viewDist + maxReach) continue;
+          const maxReach = other.segments.length * GAME_CONFIG.SEGMENT_DISTANCE + 80;
+          const maxDist = lookAhead + maxReach;
+          const dxH = other.position.x - head.x;
+          const dyH = other.position.y - head.y;
+          if (dxH * dxH + dyH * dyH > maxDist * maxDist) continue;
         }
 
         // Self-collision skip: ignore neck segments so normal turning doesn't flag own body
         const selfSkip = isSelf
           ? Math.max(18, Math.floor((snake.radius * 3.6) / GAME_CONFIG.SEGMENT_DISTANCE))
           : 0;
-        const segs = isSelf ? other.segments.slice(selfSkip) : other.segments;
 
-        // Subsample segments based on distance for silky 60fps performance
-        const otherDist = head.dist(other.position);
-        const step = otherDist > 450 ? (tier === 'hard' ? 2 : 3) : 1;
+        // Subsample segments based on distance for silky 120fps performance
+        const dxO = other.position.x - head.x;
+        const dyO = other.position.y - head.y;
+        const otherDistSq = dxO * dxO + dyO * dyO;
+        const step = otherDistSq > 250 * 250 ? (tier === 'hard' ? 2 : 3) : 1;
 
         const tierBaseMargin = tier === 'hard' ? 14 : tier === 'medium' ? 20 : 26;
         const safeDist = snake.radius + (other.radius || snake.radius) + (isSelf ? 10 : tierBaseMargin);
         const safeDistSq = safeDist * safeDist;
         const checkRangeSq = (lookAhead + safeDist) * (lookAhead + safeDist);
 
-        for (let s = 0; s < segs.length; s += step) {
+        const segs = other.segments;
+        for (let s = selfSkip; s < segs.length; s += step) {
           const seg = segs[s];
           const dx = seg.x - head.x;
           const dy = seg.y - head.y;

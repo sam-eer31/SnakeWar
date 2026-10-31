@@ -15,6 +15,7 @@ export class Camera {
   public isFreeCam: boolean = false;
   public manualZoomMin: number = 0.25;
   public manualZoomMax: number = 2.8;
+  public hasManualZoom: boolean = false;
 
   constructor(width: number, height: number) {
     this.viewportWidth = width;
@@ -37,7 +38,7 @@ export class Camera {
   }
 
   setTargetZoom(zoom: number): void {
-    if (!this.isFreeCam) {
+    if (!this.hasManualZoom) {
       this.targetZoom = Math.max(GAME_CONFIG.MIN_ZOOM, Math.min(this.manualZoomMax, zoom));
     }
   }
@@ -55,12 +56,19 @@ export class Camera {
 
   // Spectator Manual Zoom In / Out
   adjustManualZoom(factor: number): void {
+    this.hasManualZoom = true;
     const newTarget = this.targetZoom * factor;
     this.targetZoom = Math.max(this.manualZoomMin, Math.min(this.manualZoomMax, newTarget));
   }
 
   setManualZoomDirect(zoom: number): void {
+    this.hasManualZoom = true;
     this.targetZoom = Math.max(this.manualZoomMin, Math.min(this.manualZoomMax, zoom));
+  }
+
+  resetManualZoom(): void {
+    this.hasManualZoom = false;
+    this.targetZoom = GAME_CONFIG.BASE_ZOOM;
   }
 
   shake(intensity: number): void {

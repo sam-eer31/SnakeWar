@@ -2,7 +2,10 @@ export class GameLoop {
   private lastTime: number = 0;
   private running: boolean = false;
   private animFrameId: number | null = null;
-  private fpsHistory: number[] = [];
+  private fpsBuffer: Float32Array = new Float32Array(30);
+  private fpsIndex: number = 0;
+  private fpsCount: number = 0;
+  private fpsSum: number = 0;
   public currentFps: number = 60;
 
   get isRunning(): boolean {
@@ -18,6 +21,9 @@ export class GameLoop {
     if (this.running) return;
     this.running = true;
     this.lastTime = performance.now();
+    this.fpsIndex = 0;
+    this.fpsCount = 0;
+    this.fpsSum = 0;
     this.loop = this.loop.bind(this);
     this.animFrameId = requestAnimationFrame(this.loop);
   }
@@ -43,12 +49,19 @@ export class GameLoop {
     // Delta ratio relative to standard 60fps (1/60s ≈ 0.01667s)
     const deltaRatio = dt / (1 / 60);
 
-    // Calculate rolling FPS
+    // Calculate rolling FPS via circular buffer (zero allocations)
     const instantFps = 1 / dt;
-    this.fpsHistory.push(instantFps);
-    if (this.fpsHistory.length > 30) this.fpsHistory.shift();
-    const sum = this.fpsHistory.reduce((a, b) => a + b, 0);
-    this.currentFps = Math.round(sum / this.fpsHistory.length);
+    if (this.fpsCount < 30) {
+      this.fpsBuffer[this.fpsIndex] = instantFps;
+      this.fpsSum += instantFps;
+      this.fpsCount++;
+    } else {
+      this.fpsSum -= this.fpsBuffer[this.fpsIndex];
+      this.fpsBuffer[this.fpsIndex] = instantFps;
+      this.fpsSum += instantFps;
+    }
+    this.fpsIndex = (this.fpsIndex + 1) % 30;
+    this.currentFps = Math.round(this.fpsSum / this.fpsCount);
 
     this.updateFn(dt, deltaRatio);
     this.renderFn(1);

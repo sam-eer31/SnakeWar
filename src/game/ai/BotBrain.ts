@@ -218,15 +218,7 @@ export class BotBrain {
     // -------------------------------------------------------------------------
     if (this.feastTarget) {
       this.feastTimer -= dt;
-      let remainingFoodMass = 0;
-      const nearbyFeastFood = foodManager.spatialGrid.queryRadius(this.feastTarget.x, this.feastTarget.y, 250);
-      for (const item of nearbyFeastFood) {
-        if (item.data && (item.data.type === 'corpse' || item.data.type === 'super' || item.data.value >= 4)) {
-          remainingFoodMass += item.data.value;
-        }
-      }
-
-      if (this.feastTimer <= 0 || remainingFoodMass < 6) {
+      if (this.feastTimer <= 0) {
         this.feastTarget = null;
         this.isKillerFeasting = false;
         this.feastTimer = 0;
@@ -238,9 +230,11 @@ export class BotBrain {
     // 2. MACRO DESTINATION RENEWAL
     // -------------------------------------------------------------------------
     this.macroTimer += dt;
+    const mdx = this.snake.position.x - this.macroTarget.x;
+    const mdy = this.snake.position.y - this.macroTarget.y;
     if (
       !this.isKillerFeasting &&
-      (this.macroTimer >= this.macroDuration || this.snake.position.dist(this.macroTarget) < 220)
+      (this.macroTimer >= this.macroDuration || mdx * mdx + mdy * mdy < 220 * 220)
     ) {
       this.pickNewMacroTarget(arenaRadius);
     }
@@ -267,6 +261,24 @@ export class BotBrain {
     this.thinkTimer += dt;
     if (this.thinkTimer >= this.thinkInterval) {
       this.thinkTimer = 0;
+
+      // Check feast pellet depletion inside staggered think cycle
+      if (this.feastTarget) {
+        let remainingFoodMass = 0;
+        const nearbyFeastFood = foodManager.spatialGrid.queryRadius(this.feastTarget.x, this.feastTarget.y, 250);
+        for (let i = 0; i < nearbyFeastFood.length; i++) {
+          const item = nearbyFeastFood[i];
+          if (item.data && (item.data.type === 'corpse' || item.data.type === 'super' || item.data.value >= 4)) {
+            remainingFoodMass += item.data.value;
+          }
+        }
+        if (remainingFoodMass < 6) {
+          this.feastTarget = null;
+          this.isKillerFeasting = false;
+          this.feastTimer = 0;
+          this.pickNewMacroTarget(arenaRadius);
+        }
+      }
 
       // Step A: Environment Perception (non-omniscient, local spatial awareness)
       const snapshot = BotSensorySystem.perceive(

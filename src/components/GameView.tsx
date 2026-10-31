@@ -57,6 +57,7 @@ export const GameView: React.FC = () => {
   // Drag state for Free Cam pan
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
+  const lastPinchDistRef = useRef<number | null>(null);
 
   // Load persisted settings and high score on mount
   useEffect(() => {
@@ -112,6 +113,9 @@ export const GameView: React.FC = () => {
     engine.onStatsUpdate = (stats) => {
       setPlayerStats(stats);
       setIsBoosting(engine.playerSnake?.isBoosting || false);
+      if (engine.isSpectating && !engine.camera.hasManualZoom) {
+        setCurrentZoom(engine.camera.targetZoom);
+      }
     };
 
     engine.onLeaderboardUpdate = (entries) => {
@@ -254,8 +258,8 @@ export const GameView: React.FC = () => {
           engineRef.current.camera.adjustManualZoom(0.85);
           setCurrentZoom(engineRef.current.camera.targetZoom);
         } else if (e.code === 'Digit0' || e.code === 'Numpad0') {
-          engineRef.current.camera.setManualZoomDirect(GAME_CONFIG.BASE_ZOOM);
-          setCurrentZoom(GAME_CONFIG.BASE_ZOOM);
+          engineRef.current.camera.resetManualZoom();
+          setCurrentZoom(engineRef.current.camera.targetZoom);
         }
       }
     };
@@ -271,26 +275,50 @@ export const GameView: React.FC = () => {
     };
 
     const handleTouchStart = (e: TouchEvent) => {
-      if (gameState === 'spectating' && e.touches.length === 1) {
-        isDraggingRef.current = true;
-        lastMousePosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      if (gameState === 'spectating') {
+        if (e.touches.length === 1) {
+          isDraggingRef.current = true;
+          lastMousePosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        } else if (e.touches.length === 2) {
+          isDraggingRef.current = false;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          lastPinchDistRef.current = Math.hypot(dx, dy);
+        }
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (gameState === 'spectating' && isDraggingRef.current && e.touches.length === 1) {
-        const touch = e.touches[0];
-        const dx = touch.clientX - lastMousePosRef.current.x;
-        const dy = touch.clientY - lastMousePosRef.current.y;
-        lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
-        engineRef.current?.camera.panFreeCam(dx, dy);
-        setIsFreeCam(true);
+      if (gameState === 'spectating') {
+        if (isDraggingRef.current && e.touches.length === 1) {
+          const touch = e.touches[0];
+          const dx = touch.clientX - lastMousePosRef.current.x;
+          const dy = touch.clientY - lastMousePosRef.current.y;
+          lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
+          engineRef.current?.camera.panFreeCam(dx, dy);
+          setIsFreeCam(true);
+        } else if (e.touches.length === 2 && lastPinchDistRef.current !== null) {
+          e.preventDefault();
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 10 && lastPinchDistRef.current > 10) {
+            const pinchFactor = dist / lastPinchDistRef.current;
+            const factor = 1 + (pinchFactor - 1) * 0.9;
+            engineRef.current?.camera.adjustManualZoom(factor);
+            if (engineRef.current) {
+              setCurrentZoom(engineRef.current.camera.targetZoom);
+            }
+            lastPinchDistRef.current = dist;
+          }
+        }
       }
     };
 
     const handleTouchEnd = () => {
       if (gameState === 'spectating') {
         isDraggingRef.current = false;
+        lastPinchDistRef.current = null;
       }
     };
 
@@ -298,7 +326,7 @@ export const GameView: React.FC = () => {
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd);
     window.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -399,8 +427,8 @@ export const GameView: React.FC = () => {
 
   const handleResetZoom = useCallback(() => {
     if (!engineRef.current) return;
-    engineRef.current.camera.setManualZoomDirect(GAME_CONFIG.BASE_ZOOM);
-    setCurrentZoom(GAME_CONFIG.BASE_ZOOM);
+    engineRef.current.camera.resetManualZoom();
+    setCurrentZoom(engineRef.current.camera.targetZoom);
   }, []);
 
   const handleSelectSnake = useCallback((snakeId: string) => {

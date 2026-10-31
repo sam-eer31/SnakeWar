@@ -243,10 +243,6 @@ function renderRealisticDragonSerpent(
   const tipX = lastSeg.x + Math.cos(tailAngle) * tipLen;
   const tipY = lastSeg.y + Math.sin(tailAngle) * tipLen;
 
-  // Enable high-quality bicubic smoothing for crisp downsampled rendering
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-
   // 1. Volumetric Ground Ambient Occlusion / Drop Shadow
   const shadowOffX = 4.0 * scale;
   const shadowOffY = 6.0 * scale;
@@ -271,33 +267,21 @@ function renderRealisticDragonSerpent(
   ctx.fill();
   ctx.restore();
 
-  // 2. Underlying Sub-skin Tube (prevents gaps during sharp turns)
+  // 2. Underlying Sub-skin Tube (prevents gaps during sharp turns with single-draw-call ribbon)
   ctx.save();
   const subSkinColor = skin.headColor || '#052e16';
   ctx.fillStyle = subSkinColor;
-  for (let i = segCount - 1; i >= 0; i--) {
-    const p1 = points[i];
-    const p2 = i === 0 ? headPoint : points[i - 1];
-    const e1 = edges[i];
-    const e2 = i === 0 ? {
-      lx: headPoint.x - (-Math.sin(headPoint.angle)) * headPoint.r,
-      ly: headPoint.y - Math.cos(headPoint.angle) * headPoint.r,
-      rx: headPoint.x + (-Math.sin(headPoint.angle)) * headPoint.r,
-      ry: headPoint.y + Math.cos(headPoint.angle) * headPoint.r,
-    } : edges[i - 1];
-
-    ctx.beginPath();
-    ctx.moveTo(e1.lx, e1.ly);
-    ctx.lineTo(e2.lx, e2.ly);
-    ctx.lineTo(e2.rx, e2.ry);
-    ctx.lineTo(e1.rx, e1.ry);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(p1.x, p1.y, p1.r * 0.95, 0, Math.PI * 2);
-    ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(edges[0].lx, edges[0].ly);
+  for (let i = 1; i < segCount; i++) {
+    ctx.lineTo(edges[i].lx, edges[i].ly);
   }
+  ctx.lineTo(tipX, tipY);
+  for (let i = segCount - 1; i >= 0; i--) {
+    ctx.lineTo(edges[i].rx, edges[i].ry);
+  }
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 
   // 3. 3D Tapered Tail Tip Sprite (drawn under the body so root connects seamlessly)

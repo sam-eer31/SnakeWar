@@ -88,7 +88,7 @@ export class GameEngine {
     this.ctx = ctx;
     this.settings = settings;
 
-    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1;
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 1.25) : 1;
     this.dpr = dpr;
     const cssW = typeof window !== 'undefined' ? window.innerWidth : canvas.width;
     const cssH = typeof window !== 'undefined' ? window.innerHeight : canvas.height;
@@ -119,7 +119,7 @@ export class GameEngine {
   }
 
   resize(width: number, height: number, dpr?: number): void {
-    const pixelRatio = dpr || (typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1);
+    const pixelRatio = dpr ? Math.min(dpr, 1.25) : (typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 1.25) : 1);
     this.dpr = pixelRatio;
     this.canvas.width = Math.floor(width * pixelRatio);
     this.canvas.height = Math.floor(height * pixelRatio);
@@ -324,6 +324,7 @@ export class GameEngine {
     }
     this.isSpectating = true;
     this.playerSnake = null;
+    this.camera.hasManualZoom = false;
     this.startTime = performance.now();
     this.bestRankAchieved = 999;
     this.powerUps = [];
@@ -368,6 +369,7 @@ export class GameEngine {
   switchToSpectator(): void {
     this.isSpectating = true;
     this.playerSnake = null;
+    this.camera.hasManualZoom = false;
     const living = this.allSnakes.filter((s) => !s.isDead);
     if (living.length > 0) {
       const top = [...living].sort((a, b) => b.score - a.score)[0];
@@ -394,6 +396,7 @@ export class GameEngine {
     this.isSpectating = false;
     this.spectateTargetId = null;
     this.camera.isFreeCam = false;
+    this.camera.hasManualZoom = false;
     this.camera.position.set(spawnX, spawnY);
     this.camera.target.set(spawnX, spawnY);
     this.camera.setTargetZoom(GAME_CONFIG.BASE_ZOOM);
@@ -598,11 +601,13 @@ export class GameEngine {
           );
           this.camera.setTarget(this.camTarget);
 
-          const massRatio = Math.max(0, (target.mass - GAME_CONFIG.BASE_MASS) / 2000);
-          const growthZoom = 1 / Math.pow(1 + massRatio, 0.36);
-          const vH = this.camera.viewportHeight || 900;
-          const responsiveScale = Math.min(1.15, Math.max(0.78, vH / 900));
-          this.camera.setTargetZoom(Math.max(GAME_CONFIG.MIN_ZOOM, GAME_CONFIG.BASE_ZOOM * responsiveScale * growthZoom));
+          if (!this.camera.hasManualZoom) {
+            const massRatio = Math.max(0, (target.mass - GAME_CONFIG.BASE_MASS) / 2000);
+            const growthZoom = 1 / Math.pow(1 + massRatio, 0.36);
+            const vH = this.camera.viewportHeight || 900;
+            const responsiveScale = Math.min(1.15, Math.max(0.78, vH / 900));
+            this.camera.setTargetZoom(Math.max(GAME_CONFIG.MIN_ZOOM, GAME_CONFIG.BASE_ZOOM * responsiveScale * growthZoom));
+          }
         } else {
           // If spectated snake died or missing, auto-lock to next living snake
           const living = this.allSnakes.filter((s) => !s.isDead);
@@ -669,15 +674,19 @@ export class GameEngine {
       const eatRadius = snake.radius * 1.35 + 8;
 
       const nearbyItems = this.foodManager.spatialGrid.queryRadius(head.x, head.y, magnetRadius);
+      const magnetRadiusSq = magnetRadius * magnetRadius;
 
-      for (const item of nearbyItems) {
-        const food = item.data;
+      for (let i = 0; i < nearbyItems.length; i++) {
+        const food = nearbyItems[i].data;
         if (!food) continue;
 
-        const dist = head.dist(food.position);
+        const dx = food.position.x - head.x;
+        const dy = food.position.y - head.y;
+        const distSq = dx * dx + dy * dy;
+        const totalEatRadius = eatRadius + food.radius;
 
         // Within eating range
-        if (dist <= eatRadius + food.radius) {
+        if (distSq <= totalEatRadius * totalEatRadius) {
           snake.eatFood(food.value);
           this.foodManager.remove(food.id);
 
@@ -688,7 +697,7 @@ export class GameEngine {
           if (this.settings.particles && (food.type === 'super' || !snake.isBot)) {
             this.particleSystem.emitBurst(food.position.x, food.position.y, food.color, 4, 0.4);
           }
-        } else if (dist <= magnetRadius) {
+        } else if (distSq <= magnetRadiusSq) {
           // Attract towards head
           food.attractTowards(head.x, head.y, hasMagnet ? 2.5 : 1.2);
         }
@@ -791,12 +800,11 @@ export class GameEngine {
         }
 
         // Skip collision with own head and first few segments when self-collision is enabled
-        const segmentsToCheck = other.id === snake.id
-          ? other.segments.slice(10) // Self-collision only for large snakes
-          : other.segments;
+        const startSeg = other.id === snake.id ? 10 : 0;
+        const segCount = other.segments.length;
 
-        for (let i = 0; i < segmentsToCheck.length; i++) {
-          const seg = segmentsToCheck[i];
+        for (let i = startSeg; i < segCount; i++) {
+          const seg = other.segments[i];
           const dx = head.x - seg.x;
           const dy = head.y - seg.y;
           const hitDist = headHitRadius + seg.radius * GAME_CONFIG.BODY_COLLISION_RADIUS_FACTOR;

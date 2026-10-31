@@ -100,12 +100,25 @@ export class FoodManager {
     this.arenaRadius = arenaRadius;
     this.maxFoodCount = initialCount;
     this.foodItems.clear();
+    this.spatialGrid.clear();
     for (let i = 0; i < initialCount; i++) {
       this.spawnRandomFood();
     }
     for (let i = 0; i < GAME_CONFIG.SUPER_FOOD_COUNT; i++) {
       this.spawnSuperFood();
     }
+  }
+
+  private registerFood(food: FoodItem): FoodItem {
+    this.foodItems.set(food.id, food);
+    this.spatialGrid.insert({
+      id: food.id,
+      x: food.position.x,
+      y: food.position.y,
+      radius: food.radius,
+      data: food,
+    });
+    return food;
   }
 
   private getRandomArenaPosition(): { x: number; y: number } {
@@ -123,29 +136,25 @@ export class FoodManager {
     const id = `f_${this.nextId++}`;
     const value = Math.random() < 0.7 ? GAME_CONFIG.FOOD_VALUE_SMALL : GAME_CONFIG.FOOD_VALUE_MEDIUM;
     const food = new FoodItem(id, pos.x, pos.y, value, 'regular');
-    this.foodItems.set(id, food);
-    return food;
+    return this.registerFood(food);
   }
 
   spawnSuperFood(): FoodItem {
     const pos = this.getRandomArenaPosition();
     const id = `sf_${this.nextId++}`;
     const food = new FoodItem(id, pos.x, pos.y, GAME_CONFIG.FOOD_VALUE_SUPER, 'super', '#ffd700');
-    this.foodItems.set(id, food);
-    return food;
+    return this.registerFood(food);
   }
 
   spawnBoostPellet(x: number, y: number, color?: string): FoodItem {
     const id = `b_${this.nextId++}`;
     const food = new FoodItem(id, x, y, GAME_CONFIG.FOOD_VALUE_TINY, 'boost_remnant', color);
-    this.foodItems.set(id, food);
-    return food;
+    return this.registerFood(food);
   }
 
   addFoodItem(id: string, x: number, y: number, value: number, type: FoodType = 'regular', color?: string): FoodItem {
     const food = new FoodItem(id, x, y, value, type, color);
-    this.foodItems.set(id, food);
-    return food;
+    return this.registerFood(food);
   }
 
   spawnCorpsePellets(segments: { x: number; y: number }[], skinColor: string, totalMass: number): void {
@@ -162,27 +171,29 @@ export class FoodManager {
 
       const id = `cp_${this.nextId++}`;
       const food = new FoodItem(id, x, y, valuePerPellet, 'corpse', skinColor);
-      this.foodItems.set(id, food);
+      this.registerFood(food);
     }
   }
 
   remove(id: string): void {
     this.foodItems.delete(id);
+    this.spatialGrid.remove(id);
   }
 
   update(deltaRatio: number): void {
-    // Re-index spatial grid
-    this.spatialGrid.clear();
-
+    // Zero-allocation: only update and re-index items that actually move
     for (const food of this.foodItems.values()) {
-      food.update(deltaRatio);
-      this.spatialGrid.insert({
-        id: food.id,
-        x: food.position.x,
-        y: food.position.y,
-        radius: food.radius,
-        data: food,
-      });
+      const isMoving = food.velocity.magSq() > 0.001 || food.type === 'super';
+      if (isMoving) {
+        food.update(deltaRatio);
+        this.spatialGrid.updateItem({
+          id: food.id,
+          x: food.position.x,
+          y: food.position.y,
+          radius: food.radius,
+          data: food,
+        });
+      }
     }
 
     // Replenish natural food if count drops below threshold

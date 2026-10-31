@@ -367,7 +367,8 @@ export class BotSensorySystem {
     viewDist: number
   ): FoodCluster | null {
     const head = snake.position;
-    const scanRadius = Math.min(viewDist, 950);
+    const scanRadius = Math.min(viewDist, 550);
+    const scanRadiusSq = scanRadius * scanRadius;
     const items = foodManager.spatialGrid.queryRadius(head.x, head.y, scanRadius);
 
     if (items.length === 0) return null;
@@ -404,10 +405,13 @@ export class BotSensorySystem {
       const food = items[i].data;
       if (!food) continue;
 
-      const d = head.dist(food.position);
-      if (d > scanRadius) continue;
+      const dx = food.position.x - head.x;
+      const dy = food.position.y - head.y;
+      const dSq = dx * dx + dy * dy;
+      if (dSq > scanRadiusSq) continue;
+      const d = Math.sqrt(dSq);
 
-      let angleToFood = Math.atan2(food.position.y - head.y, food.position.x - head.x);
+      let angleToFood = Math.atan2(dy, dx);
       let diffA = Math.abs(snake.angle - angleToFood);
       while (diffA > Math.PI) diffA = Math.PI * 2 - diffA;
 
@@ -422,8 +426,9 @@ export class BotSensorySystem {
         const segStep = Math.max(1, Math.floor(snake.segments.length / 10));
         for (let s = 6; s < snake.segments.length; s += segStep) {
           const seg = snake.segments[s];
-          const distSegSq = (seg.x - food.position.x) ** 2 + (seg.y - food.position.y) ** 2;
-          if (distSegSq < 52 * 52) {
+          const sdx = seg.x - food.position.x;
+          const sdy = seg.y - food.position.y;
+          if (sdx * sdx + sdy * sdy < 52 * 52) {
             isInsideOwnCoil = true;
             break;
           }
