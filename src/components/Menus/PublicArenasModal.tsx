@@ -47,20 +47,82 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
     },
   ]);
 
-  // Poll server health endpoint to get live status, population, and uptime
+  // Probe server status directly via WebSocket (immune to ad-blockers)
   useEffect(() => {
     let isMounted = true;
+    let activeWs: WebSocket | null = null;
 
-    const checkServer = async () => {
-      // Derive HTTP URL from WS URL for healthcheck
-      const httpUrl = serverUrl.replace(/^ws(s)?:\/\//, 'http$1://');
+    const checkServer = () => {
       const startT = performance.now();
 
       try {
-        const res = await fetch(`${httpUrl}/health`, { cache: 'no-store' });
+        const ws = new WebSocket(serverUrl);
+        activeWs = ws;
+
+        const timer = setTimeout(() => {
+          if (ws.readyState !== WebSocket.OPEN) {
+            try {
+              ws.close();
+            } catch {}
+            checkHttpFallback(startT);
+          }
+        }, 4000);
+
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: 'status' }));
+        };
+
+        ws.onmessage = (event) => {
+          clearTimeout(timer);
+          try {
+            const data = JSON.parse(event.data);
+            const latency = Math.max(5, Math.round(performance.now() - startT));
+
+            if (isMounted && data.type === 'status' && data.arenas) {
+              setArenas([
+                {
+                  id: 'medium',
+                  name: data.arenas.medium.name || 'Emerald Glade',
+                  difficulty: 'medium',
+                  uptimeSeconds: data.arenas.medium.uptime || 0,
+                  snakesCount: data.arenas.medium.snakes || 38,
+                  isOnline: true,
+                  pingMs: latency,
+                },
+                {
+                  id: 'hard',
+                  name: data.arenas.hard.name || 'Apex Colosseum',
+                  difficulty: 'hard',
+                  uptimeSeconds: data.arenas.hard.uptime || 0,
+                  snakesCount: data.arenas.hard.snakes || 45,
+                  isOnline: true,
+                  pingMs: latency,
+                },
+              ]);
+              setIsChecking(false);
+            }
+          } catch {}
+          try {
+            ws.close();
+          } catch {}
+        };
+
+        ws.onerror = () => {
+          clearTimeout(timer);
+          checkHttpFallback(startT);
+        };
+      } catch {
+        checkHttpFallback(startT);
+      }
+    };
+
+    const checkHttpFallback = async (startT: number) => {
+      try {
+        const httpUrl = serverUrl.replace(/^ws(s)?:\/\//, 'http$1://');
+        const res = await fetch(`${httpUrl}/api/status`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          const latency = Math.round(performance.now() - startT);
+          const latency = Math.max(5, Math.round(performance.now() - startT));
 
           if (isMounted && data.arenas) {
             setArenas([
@@ -84,29 +146,33 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
               },
             ]);
             setIsChecking(false);
+            return;
           }
-        } else {
-          throw new Error('Not 200');
         }
-      } catch {
-        if (isMounted) {
-          setArenas((prev) =>
-            prev.map((a) => ({
-              ...a,
-              isOnline: false,
-              pingMs: 0,
-            }))
-          );
-          setIsChecking(false);
-        }
+      } catch {}
+
+      if (isMounted) {
+        setArenas((prev) =>
+          prev.map((a) => ({
+            ...a,
+            isOnline: false,
+            pingMs: 0,
+          }))
+        );
+        setIsChecking(false);
       }
     };
 
     checkServer();
-    const interval = setInterval(checkServer, 3000);
+    const interval = setInterval(checkServer, 5000);
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (activeWs) {
+        try {
+          activeWs.close();
+        } catch {}
+      }
     };
   }, [serverUrl]);
 

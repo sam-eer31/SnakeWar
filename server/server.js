@@ -709,6 +709,25 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+      if (data.type === 'status') {
+        ws.send(JSON.stringify({
+          type: 'status',
+          arenas: {
+            medium: {
+              name: rooms.medium.name,
+              uptime: rooms.medium.getUptimeSeconds(),
+              snakes: rooms.medium.snakes.size,
+            },
+            hard: {
+              name: rooms.hard.name,
+              uptime: rooms.hard.getUptimeSeconds(),
+              snakes: rooms.hard.snakes.size,
+            },
+          },
+        }));
+        return;
+      }
+
       if (data.type === 'join') {
         const roomId = data.roomId || 'medium';
         const room = rooms[roomId] || rooms.medium;
