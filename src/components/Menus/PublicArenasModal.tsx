@@ -17,12 +17,13 @@ interface PublicArenasModalProps {
   onClose: () => void;
 }
 
+const DEFAULT_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'ws://localhost:3001';
+
 export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
   onJoinArena,
   onClose,
 }) => {
-  const [serverUrl, setServerUrl] = useState<string>('ws://localhost:3001');
-  const [showUrlConfig, setShowUrlConfig] = useState<boolean>(false);
+  const serverUrl = DEFAULT_SERVER_URL;
   const [isChecking, setIsChecking] = useState<boolean>(true);
 
   const [arenas, setArenas] = useState<PublicArenaInfo[]>([
@@ -45,14 +46,6 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
       pingMs: 0,
     },
   ]);
-
-  // Load custom URL from localStorage if saved
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('snake_io_server_url');
-      if (saved) setServerUrl(saved);
-    } catch {}
-  }, []);
 
   // Poll server health endpoint to get live status, population, and uptime
   useEffect(() => {
@@ -117,13 +110,6 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
     };
   }, [serverUrl]);
 
-  const handleSaveUrl = (url: string) => {
-    setServerUrl(url);
-    try {
-      localStorage.setItem('snake_io_server_url', url);
-    } catch {}
-  };
-
   const formatUptime = (sec: number) => {
     if (sec <= 0) return 'Just started';
     const mins = Math.floor(sec / 60);
@@ -159,48 +145,39 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
         </div>
 
         {/* Server Connection Banner */}
-        <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+        <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3 mb-5 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span
+              className={`w-2.5 h-2.5 rounded-full ${
+                arenas.some((a) => a.isOnline)
+                  ? 'bg-emerald-400 animate-pulse'
+                  : isChecking
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-slate-500'
+              }`}
+            />
             <span className="text-slate-300 font-medium">
-              Server Host: <strong className="text-cyan-300 font-mono">{serverUrl}</strong>
+              {arenas.some((a) => a.isOnline) ? (
+                <>
+                  Official Dedicated Arenas: <strong className="text-emerald-400">Online</strong>
+                </>
+              ) : isChecking ? (
+                <>Connecting to Global Arenas...</>
+              ) : (
+                <>
+                  Dedicated Arenas:{' '}
+                  <strong className="text-amber-400">Local Simulation Fallback Active</strong>
+                </>
+              )}
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowUrlConfig(!showUrlConfig)}
-              className="text-[11px] font-bold text-slate-400 hover:text-cyan-300 underline transition-colors"
-            >
-              {showUrlConfig ? 'Hide Config' : '⚙️ Change Server Host (Render URL)'}
-            </button>
-          </div>
+          {arenas.some((a) => a.isOnline) && (
+            <span className="text-[11px] font-mono font-bold text-slate-400">
+              Ping: {arenas[0].pingMs || arenas[1].pingMs}ms
+            </span>
+          )}
         </div>
-
-        {/* Custom Server URL Config Form (for Render deployment) */}
-        {showUrlConfig && (
-          <div className="bg-slate-950/90 border border-cyan-500/30 rounded-2xl p-3.5 mb-5 flex flex-col gap-2 animate-fade-in text-xs">
-            <div className="font-bold text-slate-200">Dedicated Backend URL:</div>
-            <p className="text-[11px] text-slate-400">
-              On local, keep <code className="text-cyan-300">ws://localhost:3001</code>. When deployed to Render, paste your Render WebSocket URL (e.g. <code className="text-cyan-300">wss://snake-server.onrender.com</code>).
-            </p>
-            <div className="flex items-center gap-2 mt-1">
-              <input
-                type="text"
-                value={serverUrl}
-                onChange={(e) => handleSaveUrl(e.target.value)}
-                placeholder="ws://localhost:3001 or wss://..."
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-cyan-400"
-              />
-              <button
-                onClick={() => handleSaveUrl('ws://localhost:3001')}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-bold text-slate-300 hover:text-white text-[11px] transition-colors"
-              >
-                Reset Local
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Arenas Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
@@ -294,7 +271,7 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
 
         {/* Footer Note */}
         <div className="text-center text-[11px] text-slate-400">
-          💡 When running locally, ensure <code className="text-cyan-300 font-mono">npm run server</code> is active on port 3001. If the server is offline, the app automatically runs an authentic local simulation room.
+          ⚡ 30 Hz server-authoritative tick rate with real-time multiplayer, persistent AI ecosystems, and automatic local fallback.
         </div>
       </div>
     </div>
