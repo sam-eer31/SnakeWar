@@ -232,7 +232,15 @@ export class PartyGuest {
     roomCode: string,
     playerName: string,
     skinId: string,
-    isSpectator: boolean = false
+    isSpectator: boolean = false,
+    roomConfig?: {
+      id: string;
+      name: string;
+      isPublic: boolean;
+      hostName: string;
+      difficulty: 'easy' | 'medium' | 'hard';
+      snakesCount: number;
+    }
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -242,14 +250,33 @@ export class PartyGuest {
 
         ws.onopen = () => {
           this.isConnected = true;
-          ws.send(
-            JSON.stringify({
-              type: 'guest_join',
-              name: playerName,
-              skinId,
-              isSpectator,
-            })
-          );
+          if (roomConfig) {
+            ws.send(
+              JSON.stringify({
+                type: 'claim_host',
+                isPublic: roomConfig.isPublic,
+                metadata: {
+                  id: roomConfig.id,
+                  name: roomConfig.name,
+                  hostName: roomConfig.hostName,
+                  difficulty: roomConfig.difficulty,
+                  snakesCount: roomConfig.snakesCount,
+                },
+                name: playerName,
+                skinId,
+                isSpectator,
+              })
+            );
+          } else {
+            ws.send(
+              JSON.stringify({
+                type: 'guest_join',
+                name: playerName,
+                skinId,
+                isSpectator,
+              })
+            );
+          }
 
           this.pingInterval = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
@@ -357,10 +384,9 @@ export class PartyGuest {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
-          type: 'guest_join',
+          type: 'respawn',
           name: playerName,
           skinId,
-          isSpectator: false,
         })
       );
     }

@@ -97,10 +97,37 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
       try {
         const partyHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
         const lobbyUrl = getPartyWsUrl(partyHost, 'lobby');
+        const startT = performance.now();
         const pws = new WebSocket(lobbyUrl);
         partyLobbyWs = pws;
 
         pws.onopen = () => {
+          const latency = Math.max(12, Math.round(performance.now() - startT));
+          if (isMounted) {
+            setDedicatedArenas([
+              {
+                id: 'medium',
+                name: 'Emerald Glade',
+                difficulty: 'medium',
+                uptimeSeconds: 3600,
+                snakesCount: 22,
+                playersCount: 0,
+                isOnline: true,
+                pingMs: latency,
+              },
+              {
+                id: 'hard',
+                name: 'Apex Colosseum',
+                difficulty: 'hard',
+                uptimeSeconds: 3600,
+                snakesCount: 28,
+                playersCount: 0,
+                isOnline: true,
+                pingMs: latency,
+              },
+            ]);
+            setIsChecking(false);
+          }
           if (pws.readyState === WebSocket.OPEN) {
             pws.send(JSON.stringify({ type: 'get_rooms' }));
           }
@@ -465,7 +492,7 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
 
                   <div className="flex items-center gap-2 pt-2 border-t border-[#1e293b]">
                     <button
-                      onClick={() => onJoinArena(arena.id, true, serverUrl)}
+                      onClick={() => onJoinArena(arena.id, true, serverUrl, arena.id === 'hard' ? 'apex-colosseum' : 'emerald-glade')}
                       disabled={!arena.isOnline}
                       className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-[#1e293b] font-game font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                       title="Spectate match"
@@ -475,7 +502,7 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                     </button>
 
                     <button
-                      onClick={() => onJoinArena(arena.id, false, serverUrl)}
+                      onClick={() => onJoinArena(arena.id, false, serverUrl, arena.id === 'hard' ? 'apex-colosseum' : 'emerald-glade')}
                       disabled={!arena.isOnline}
                       className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-game font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                     >
