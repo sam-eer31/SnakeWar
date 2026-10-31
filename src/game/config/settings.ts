@@ -37,12 +37,12 @@ export const DEFAULT_SETTINGS: GameSettings = {
   selfCollision: false,
 };
 
-const STORAGE_KEY = 'snake_io_settings_v1';
+const STORAGE_KEY = 'snakewar_settings_v1';
 
 export function loadSettings(): GameSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('snake_io_settings_v1');
     if (!raw) return DEFAULT_SETTINGS;
     return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
   } catch {

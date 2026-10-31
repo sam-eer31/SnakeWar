@@ -22,6 +22,7 @@ import { PublicArenasModal } from './Menus/PublicArenasModal';
 import { SnakeWarLoader } from './UI/SnakeWarLoader';
 import { ArenaNotificationFeed, ArenaNotification } from './HUD/ArenaNotificationFeed';
 import { NetworkClient } from '@/game/network/NetworkClient';
+import { PartyHost, PartyGuest, DEFAULT_PARTY_HOST } from '@/game/network/PartyClient';
 import { Home, Settings as SettingsIcon, Globe } from 'lucide-react';
 
 type GameState = 'menu' | 'playing' | 'spectating' | 'gameover';
@@ -80,7 +81,7 @@ export const GameView: React.FC = () => {
     const s = loadSettings();
     setSettings(s);
     try {
-      const savedHs = localStorage.getItem('snake_io_highscore');
+      const savedHs = localStorage.getItem('snakewar_highscore') || localStorage.getItem('snake_io_highscore');
       if (savedHs) setHighScore(parseInt(savedHs, 10));
     } catch {}
   }, []);
@@ -154,7 +155,7 @@ export const GameView: React.FC = () => {
         setHighScore(stats.score);
         newHigh = true;
         try {
-          localStorage.setItem('snake_io_highscore', stats.score.toString());
+          localStorage.setItem('snakewar_highscore', stats.score.toString());
         } catch {}
       }
       setIsNewHighScore(newHigh);
@@ -466,12 +467,60 @@ export const GameView: React.FC = () => {
     setGameState('menu');
   }, []);
 
-  // Join or Spectate Arena (Official or Private Code)
+  // Join or Spectate Arena (Official Dedicated or Cloudflare PartyKit Private Code)
   const handleJoinPublicArena = useCallback(
     async (roomId: string, isSpectating: boolean, serverUrl: string, roomCode?: string) => {
       if (!engineRef.current) return;
       setShowPublicArenas(false);
 
+      // If joining via Room Code, connect through Cloudflare PartyKit Edge
+      if (roomCode) {
+        try {
+          const partyHostAddress = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
+          const guest = new PartyGuest();
+
+          guest.onPlayerJoined = (name) => {
+            addNotification('join', 'entered the arena!', name);
+          };
+          guest.onPlayerLeft = (name) => {
+            addNotification('leave', 'left the arena.', name);
+          };
+          guest.onRoomClosed = (msg) => {
+            alert(msg);
+            handleReturnToMenu();
+          };
+          guest.onError = (msg) => {
+            alert(msg);
+            handleReturnToMenu();
+          };
+
+          await guest.connect(
+            partyHostAddress,
+            roomCode,
+            settings.playerName || 'Player',
+            settings.selectedSkinId || 'emerald-dragon',
+            isSpectating
+          );
+
+          const displayRoomId = `Room [${roomCode}]`;
+          setOnlineServerInfo({ roomId: displayRoomId, ping: guest.ping });
+          guest.onPing = (ping) => {
+            setOnlineServerInfo({ roomId: displayRoomId, ping });
+          };
+
+          engineRef.current.startOnlineSession(guest as any, isSpectating);
+          setGameState(isSpectating ? 'spectating' : 'playing');
+          addNotification('info', `Connected to Room ${roomCode} via Edge.`);
+          return;
+        } catch (err) {
+          console.error('Failed to connect to PartyKit room:', err);
+          alert(`Could not connect to Room "${roomCode}". Ensure the host has started the match.`);
+          setGameState('menu');
+          return;
+        }
+      }
+
+      // Dedicated Official Arenas (medium / hard)
       try {
         const client = new NetworkClient();
 
@@ -486,25 +535,15 @@ export const GameView: React.FC = () => {
           handleReturnToMenu();
         };
 
-        if (roomCode) {
-          await client.joinByCode(
-            serverUrl,
-            roomCode,
-            settings.playerName || 'Player',
-            settings.selectedSkinId || 'emerald-dragon',
-            isSpectating
-          );
-        } else {
-          await client.connect(
-            serverUrl,
-            roomId || 'medium',
-            settings.playerName || 'Player',
-            settings.selectedSkinId || 'emerald-dragon',
-            isSpectating
-          );
-        }
+        await client.connect(
+          serverUrl,
+          roomId || 'medium',
+          settings.playerName || 'Player',
+          settings.selectedSkinId || 'emerald-dragon',
+          isSpectating
+        );
 
-        const displayRoomId = roomCode ? `Private [${roomCode}]` : (roomId === 'hard' ? 'Apex Colosseum' : 'Emerald Glade');
+        const displayRoomId = roomId === 'hard' ? 'Apex Colosseum' : 'Emerald Glade';
         setOnlineServerInfo({ roomId: displayRoomId, ping: client.ping });
         client.onPing = (ping) => {
           setOnlineServerInfo({ roomId: displayRoomId, ping });
@@ -515,14 +554,14 @@ export const GameView: React.FC = () => {
         addNotification('info', `Connected to ${displayRoomId}`);
       } catch (err) {
         console.error('Failed to connect to multiplayer server:', err);
-        alert('Could not connect to the multiplayer arena. Please verify server status.');
+        alert('Could not connect to dedicated server. Please verify server status.');
         setGameState('menu');
       }
     },
     [settings.playerName, settings.selectedSkinId, addNotification, handleReturnToMenu]
   );
 
-  // Launch Player-Hosted Online Arena (Public or Private)
+  // Launch Player-Hosted Online Arena via Cloudflare PartyKit Edge
   const handleLaunchOnlineRoom = useCallback(
     async (
       mode: 'public' | 'private',
@@ -534,49 +573,35 @@ export const GameView: React.FC = () => {
       setShowMatchSetup(false);
 
       try {
-        const client = new NetworkClient();
-        const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'ws://localhost:3001';
+        const partyHostAddress = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
+        const host = new PartyHost(roomCode);
 
-        client.onPlayerJoined = (name, isSpec) => {
-          addNotification('join', isSpec ? 'joined as spectator' : 'entered the arena!', name);
-        };
-        client.onPlayerLeft = (name) => {
-          addNotification('leave', 'left the arena.', name);
-        };
-        client.onError = (msg) => {
-          alert(msg);
-          handleReturnToMenu();
-        };
+        await host.connect(
+          partyHostAddress,
+          mode === 'public',
+          roomName,
+          settings.playerName || 'Host',
+          config.botDifficulty,
+          config.botCount
+        );
 
-        await client.createRoom(serverUrl, {
-          name: roomName,
-          mode,
-          roomCode: mode === 'private' ? roomCode : undefined,
-          hostName: settings.playerName || 'Host',
-          skinId: settings.selectedSkinId || 'emerald-dragon',
-          isSpectator: false,
-          settings: {
-            difficulty: config.botDifficulty,
-            botCount: config.botCount,
-          },
-        });
+        engineRef.current.camera.resetManualZoom();
+        setSessionConfig(config);
+        setGameState('playing');
+        engineRef.current.start(settings.playerName, settings.selectedSkinId, config);
+        engineRef.current.attachPartyHost(host);
 
         const displayId = mode === 'private' ? `Private [${roomCode}]` : roomName;
-        setOnlineServerInfo({ roomId: displayId, ping: client.ping });
-        client.onPing = (ping) => {
-          setOnlineServerInfo({ roomId: displayId, ping });
-        };
+        setOnlineServerInfo({ roomId: displayId, ping: host.ping });
 
-        engineRef.current.startOnlineSession(client, false);
-        setGameState('playing');
-        addNotification('info', `Arena hosted (${mode === 'private' ? `Code: ${roomCode}` : 'Public Arena'}).`);
+        addNotification('info', `Arena hosted on Edge (${mode === 'private' ? `Code: ${roomCode}` : 'Public'}).`);
       } catch (err) {
-        console.error('Failed to create online arena:', err);
-        alert('Could not launch online arena. Please ensure the multiplayer server is running.');
+        console.error('Failed to create edge room:', err);
+        alert('Could not launch online arena. Please ensure PartyKit is running.');
         setGameState('menu');
       }
     },
-    [settings.playerName, settings.selectedSkinId, addNotification, handleReturnToMenu]
+    [settings.playerName, settings.selectedSkinId, addNotification]
   );
 
   return (

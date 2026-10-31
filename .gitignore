@@ -29,4 +29,6 @@ backup/
 # System files
 .DS_Store
 Thumbs.db
+.partykit/
+.wrangler/
 

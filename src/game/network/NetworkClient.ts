@@ -1,5 +1,5 @@
 /**
- * Snake.io WebSocket Network Client
+ * SnakeWar WebSocket Network Client
  * Handles real-time communication with dedicated public arena servers.
  */
 

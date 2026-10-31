@@ -1,4 +1,4 @@
-# Snake.io - Modular Offline Canvas Game (Next.js Static)
+# SnakeWar - Modular Offline & Online Canvas Game (Next.js Static)
 
 A high-performance, modular, and scalable **Slither.io / Worm.io style arena game** built completely with **Next.js**, **TypeScript**, **Tailwind CSS**, and **HTML5 Canvas 2D**.
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { DEFAULT_PARTY_HOST, getPartyWsUrl } from '@/game/network/PartyClient';
 import {
   Globe,
   TreePine,
@@ -88,6 +89,39 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
   useEffect(() => {
     let isMounted = true;
     let activeWs: WebSocket | null = null;
+    let partyLobbyWs: WebSocket | null = null;
+
+    // Probe Cloudflare PartyKit Lobby for edge community rooms
+    const probePartyLobby = () => {
+      try {
+        const partyHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
+        const lobbyUrl = getPartyWsUrl(partyHost, 'lobby');
+        const pws = new WebSocket(lobbyUrl);
+        partyLobbyWs = pws;
+
+        pws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (isMounted && data.type === 'community_rooms' && Array.isArray(data.rooms)) {
+              setCommunityArenas(
+                data.rooms.map((c: any) => ({
+                  id: c.id,
+                  name: c.name,
+                  hostName: c.hostName || 'Host',
+                  difficulty: c.difficulty || 'medium',
+                  uptimeSeconds: c.uptimeSeconds || 0,
+                  snakesCount: c.snakesCount || 30,
+                  playersCount: c.playersCount || 1,
+                  pingMs: 15,
+                }))
+              );
+            }
+          } catch {}
+        };
+      } catch {}
+    };
+
+    probePartyLobby();
 
     const checkServer = () => {
       const startT = performance.now();
@@ -244,6 +278,11 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
       if (activeWs) {
         try {
           activeWs.close();
+        } catch {}
+      }
+      if (partyLobbyWs) {
+        try {
+          partyLobbyWs.close();
         } catch {}
       }
     };
@@ -508,14 +547,14 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
-                      onClick={() => onJoinArena(room.id, true, serverUrl)}
+                      onClick={() => onJoinArena('', true, serverUrl, room.id)}
                       className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-game font-bold text-xs flex items-center gap-1 border border-[#1e293b] cursor-pointer"
                       title="Spectate"
                     >
                       <Eye className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => onJoinArena(room.id, false, serverUrl)}
+                      onClick={() => onJoinArena('', false, serverUrl, room.id)}
                       className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-game font-bold text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
                     >
                       <Play className="w-3.5 h-3.5" />

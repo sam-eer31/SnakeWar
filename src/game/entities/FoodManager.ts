@@ -92,6 +92,10 @@ export class FoodManager {
   public arenaRadius: number = GAME_CONFIG.ARENA_RADIUS;
   public maxFoodCount: number = GAME_CONFIG.MAX_FOOD_COUNT;
 
+  // Track state changes for PartyKit edge broadcast
+  public pendingEatenIds: number[] = [];
+  public pendingNewFood: { id: number; x: number; y: number; v: number; t: 'regular' | 'boost_remnant' | 'super' | 'corpse'; c?: string | null }[] = [];
+
   constructor() {
     this.spatialGrid = new SpatialHashGrid<FoodItem>(GAME_CONFIG.SPATIAL_GRID_CELL_SIZE);
   }
@@ -118,6 +122,19 @@ export class FoodManager {
       radius: food.radius,
       data: food,
     });
+
+    const numericId = parseInt(food.id.replace(/\D/g, '') || '0', 10);
+    if (numericId > 0 && this.pendingNewFood.length < 200) {
+      this.pendingNewFood.push({
+        id: numericId,
+        x: Math.round(food.position.x),
+        y: Math.round(food.position.y),
+        v: food.value,
+        t: food.type,
+        c: food.color,
+      });
+    }
+
     return food;
   }
 
@@ -176,8 +193,38 @@ export class FoodManager {
   }
 
   remove(id: string): void {
+    const numericId = parseInt(id.replace(/\D/g, '') || '0', 10);
+    if (numericId > 0 && this.pendingEatenIds.length < 300) {
+      this.pendingEatenIds.push(numericId);
+    }
     this.foodItems.delete(id);
     this.spatialGrid.remove(id);
+  }
+
+  getAndClearEatenFood(): number[] {
+    const list = this.pendingEatenIds;
+    this.pendingEatenIds = [];
+    return list;
+  }
+
+  getAndClearNewFood() {
+    const list = this.pendingNewFood;
+    this.pendingNewFood = [];
+    return list;
+  }
+
+  getAllFoodForSnapshot() {
+    return Array.from(this.foodItems.values()).map((f) => {
+      const numId = parseInt(f.id.replace(/\D/g, '') || '1', 10);
+      return {
+        id: numId,
+        x: Math.round(f.position.x),
+        y: Math.round(f.position.y),
+        v: f.value,
+        t: f.type,
+        c: f.color,
+      };
+    });
   }
 
   update(deltaRatio: number): void {

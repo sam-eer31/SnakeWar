@@ -1,5 +1,5 @@
 /**
- * Snake.io Dedicated Multiplayer Game Server
+ * SnakeWar Dedicated Multiplayer Game Server
  * Supports 24/7 Persistent Public Arenas with living bots,
  * real-time WebSocket multiplayer, and Render-ready healthcheck.
  */
@@ -769,7 +769,7 @@ function getStatusPayload() {
 
   return {
     status: 'ok',
-    service: 'snake.io-dedicated-server',
+    service: 'snakewar-dedicated-server',
     timestamp: Date.now(),
     arenas: {
       medium: {
@@ -851,7 +851,7 @@ const server = http.createServer((req, res) => {
   }
 
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Snake.io Dedicated Game Server is running 24/7 on WebSockets.\nConnect via ws://localhost:' + PORT);
+  res.end('SnakeWar Dedicated Game Server is running 24/7 on WebSockets.\nConnect via ws://localhost:' + PORT);
 });
 
 // =============================================================================
@@ -1014,7 +1014,7 @@ wss.on('connection', (ws, req) => {
 // Start Server
 server.listen(PORT, () => {
   console.log(`=======================================================`);
-  console.log(`Snake.io Dedicated Game Server listening on port ${PORT}`);
+  console.log(`SnakeWar Dedicated Game Server listening on port ${PORT}`);
   console.log(`HTTP Healthcheck: http://localhost:${PORT}/health`);
   console.log(`WebSocket Server: ws://localhost:${PORT}`);
   console.log(`Arenas Online:`);

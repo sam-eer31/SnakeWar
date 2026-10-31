@@ -12,6 +12,7 @@ import { GAME_CONFIG } from './config/constants';
 import { GameSettings, DEFAULT_SETTINGS } from './config/settings';
 import { ArenaSessionConfig, DEFAULT_SESSION_CONFIG } from './config/session';
 import { NetworkClient } from './network/NetworkClient';
+import { PartyHost, PartyGuest } from './network/PartyClient';
 import { SpatialHashGrid, SnakeSegmentData } from './core/SpatialHashGrid';
 
 export interface LeaderboardEntry {
@@ -80,8 +81,14 @@ export class GameEngine {
   public onStatsUpdate?: (stats: PlayerStats) => void;
   public onLeaderboardUpdate?: (leaderboard: LeaderboardEntry[]) => void;
   public onGameOver?: (stats: GameOverStats) => void;
+  public onNotification?: (notification: any) => void;
   public dpr: number = 1;
   public segmentGrid: SpatialHashGrid<SnakeSegmentData> = new SpatialHashGrid<SnakeSegmentData>(140);
+
+  // PartyKit Cloudflare Host state
+  public partyHost: PartyHost | null = null;
+  private partyBroadcastTimer: number = 0;
+  private tickCounter: number = 0;
 
   constructor(canvas: HTMLCanvasElement, settings: GameSettings = DEFAULT_SETTINGS) {
     this.canvas = canvas;
@@ -176,6 +183,82 @@ export class GameEngine {
     this.spectateTargetId = null;
     this.camera.resetManualZoom();
     this.gameLoop.start();
+  }
+
+  attachPartyHost(partyHost: PartyHost): void {
+    this.partyHost = partyHost;
+    this.partyBroadcastTimer = 0;
+    this.tickCounter = 0;
+
+    partyHost.onGuestJoined = (guestId, name, skin, isSpec) => {
+      if (!isSpec) {
+        const r = Math.sqrt(Math.random()) * (this.sessionConfig.arenaRadius - 500);
+        const theta = Math.random() * Math.PI * 2;
+        const guestSnake = new Snake(guestId, name, Math.cos(theta) * r, Math.sin(theta) * r, skin, false);
+        this.allSnakes.push(guestSnake);
+      }
+
+      partyHost.sendInitToGuest(guestId, {
+        type: 'init',
+        roomId: partyHost.roomCode,
+        arenaRadius: this.sessionConfig.arenaRadius,
+        myId: isSpec ? null : guestId,
+        food: this.foodManager.getAllFoodForSnapshot(),
+        snakes: this.allSnakes.map((s) => ({
+          id: s.id,
+          name: s.name,
+          skinId: s.skin.id,
+          tier: s.tier,
+          isBot: s.isBot,
+          x: Math.round(s.position.x),
+          y: Math.round(s.position.y),
+          angle: Number(s.angle.toFixed(2)),
+          radius: Math.round(s.radius),
+          mass: Math.round(s.mass),
+          score: Math.round(s.score),
+          kills: s.kills,
+          isBoosting: s.isBoosting,
+          spawnProtection: s.hasSpawnProtection,
+          segs: s.segments.filter((_, idx) => idx % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y)]),
+        })),
+      });
+
+      if (this.onNotification) {
+        this.onNotification({
+          id: Math.random().toString(36).substr(2, 9),
+          type: 'join',
+          message: `${name} entered the arena!`,
+          playerName: name,
+          timestamp: Date.now(),
+        });
+      }
+      partyHost.broadcastNotification('player_joined', name);
+    };
+
+    partyHost.onGuestInput = (guestId, angle, isBoosting) => {
+      const s = this.allSnakes.find((snake) => snake.id === guestId);
+      if (s && !s.isDead) {
+        s.setTargetAngle(angle);
+        s.isBoosting = isBoosting;
+      }
+    };
+
+    partyHost.onGuestLeft = (guestId) => {
+      const s = this.allSnakes.find((snake) => snake.id === guestId);
+      if (s) {
+        s.isDead = true;
+        if (this.onNotification) {
+          this.onNotification({
+            id: Math.random().toString(36).substr(2, 9),
+            type: 'leave',
+            message: `${s.name} left the arena.`,
+            playerName: s.name,
+            timestamp: Date.now(),
+          });
+        }
+        partyHost.broadcastNotification('player_left', s.name);
+      }
+    };
   }
 
   startOnlineSession(client: NetworkClient, isSpectator: boolean = false): void {
@@ -462,6 +545,10 @@ export class GameEngine {
       this.networkClient.disconnect();
       this.networkClient = null;
     }
+    if (this.partyHost) {
+      this.partyHost.disconnect();
+      this.partyHost = null;
+    }
     this.isOnline = false;
   }
 
@@ -665,6 +752,44 @@ export class GameEngine {
     if (this.uiUpdateTimer >= this.UI_UPDATE_INTERVAL) {
       this.uiUpdateTimer = 0;
       this.dispatchUIUpdates();
+    }
+
+    // 10. Broadcast World Snapshot to PartyKit Edge (if hosting)
+    if (this.partyHost && this.partyHost.isConnected) {
+      this.partyBroadcastTimer += dt;
+      if (this.partyBroadcastTimer >= 0.04) {
+        this.partyBroadcastTimer = 0;
+        this.partyHost.broadcastTick({
+          type: 'tick',
+          tick: ++this.tickCounter,
+          snakes: this.allSnakes.map((s) => ({
+            id: s.id,
+            name: s.name,
+            skinId: s.skin.id,
+            tier: s.tier,
+            isBot: s.isBot,
+            x: Math.round(s.position.x),
+            y: Math.round(s.position.y),
+            angle: Number(s.angle.toFixed(2)),
+            radius: Math.round(s.radius),
+            mass: Math.round(s.mass),
+            score: Math.round(s.score),
+            kills: s.kills,
+            isBoosting: s.isBoosting,
+            spawnProtection: s.hasSpawnProtection,
+            segs: s.segments.filter((_, idx) => idx % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y)]),
+          })),
+          eaten: this.foodManager.getAndClearEatenFood(),
+          newFood: this.foodManager.getAndClearNewFood(),
+          leaderboard: this.getLeaderboard().map((e) => ({
+            id: e.id,
+            name: e.name,
+            score: e.score,
+            isPlayer: e.isPlayer,
+            tier: e.tier,
+          })),
+        });
+      }
     }
   }
 
@@ -918,16 +1043,20 @@ export class GameEngine {
     }
   }
 
-  private dispatchUIUpdates(): void {
-    // 1. Sort Leaderboard
+  public getLeaderboard(): LeaderboardEntry[] {
     const sorted = [...this.allSnakes].sort((a, b) => b.score - a.score);
-    const top10: LeaderboardEntry[] = sorted.slice(0, 10).map((s) => ({
+    return sorted.slice(0, 10).map((s) => ({
       id: s.id,
       name: s.name,
       score: s.score,
       isPlayer: !s.isBot,
       tier: s.tier,
     }));
+  }
+
+  private dispatchUIUpdates(): void {
+    const top10 = this.getLeaderboard();
+    const sorted = [...this.allSnakes].sort((a, b) => b.score - a.score);
 
     if (this.onLeaderboardUpdate) {
       this.onLeaderboardUpdate(top10);

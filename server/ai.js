@@ -1,5 +1,5 @@
 /**
- * Canonical AI Bridge for Snake.io Server
+ * Canonical AI Bridge for SnakeWar Server
  * Both online server arenas and offline local matches use the exact same AI files:
  * src/game/ai/BotBrain.ts, ContextSteering.ts, BotSensorySystem.ts, TacticalBehaviors.ts, etc.
  */
