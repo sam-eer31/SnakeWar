@@ -21,7 +21,6 @@ import { MatchSetupModal } from './Menus/MatchSetupModal';
 import { PublicArenasModal } from './Menus/PublicArenasModal';
 import { SnakeWarLoader } from './UI/SnakeWarLoader';
 import { ArenaNotificationFeed, ArenaNotification } from './HUD/ArenaNotificationFeed';
-import { NetworkClient } from '@/game/network/NetworkClient';
 import { PartyHost, PartyGuest, getActivePartyHost } from '@/game/network/PartyClient';
 import { Home, Settings as SettingsIcon, Globe } from 'lucide-react';
 
@@ -483,102 +482,51 @@ export const GameView: React.FC = () => {
     setGameState('menu');
   }, []);
 
-  // Join or Spectate Arena (Official Dedicated or Cloudflare PartyKit Private Code)
+  // Join or Spectate Match (via Code or Community Arena)
   const handleJoinPublicArena = useCallback(
-    async (roomId: string, isSpectating: boolean, serverUrl: string, roomCode?: string) => {
-      if (!engineRef.current) return;
+    async (roomCode: string, isSpectating: boolean) => {
+      if (!engineRef.current || !roomCode) return;
       setShowPublicArenas(false);
 
-      // If joining via Room Code or Official Arenas, connect through Cloudflare Edge
-      const edgeRoomCode = roomCode || (roomId === 'hard' ? 'apex-colosseum' : roomId === 'medium' ? 'emerald-glade' : null);
-
-      if (edgeRoomCode) {
-        try {
-          const partyHostAddress = getActivePartyHost();
-          const guest = new PartyGuest();
-
-          guest.onPlayerJoined = (name) => {
-            addNotification('join', 'entered the arena!', name);
-          };
-          guest.onPlayerLeft = (name) => {
-            addNotification('leave', 'left the arena.', name);
-          };
-          guest.onRoomClosed = (msg) => {
-            alert(msg);
-            handleReturnToMenu();
-          };
-          guest.onError = (msg) => {
-            alert(msg);
-            handleReturnToMenu();
-          };
-
-          await guest.connect(
-            partyHostAddress,
-            edgeRoomCode,
-            settings.playerName || 'Player',
-            settings.selectedSkinId || 'emerald-dragon',
-            isSpectating
-          );
-
-          const displayRoomId =
-            edgeRoomCode === 'emerald-glade'
-              ? 'Emerald Glade'
-              : edgeRoomCode === 'apex-colosseum'
-              ? 'Apex Colosseum'
-              : `Room [${edgeRoomCode}]`;
-
-          setOnlineServerInfo({ roomId: displayRoomId, ping: guest.ping });
-          guest.onPing = (ping) => {
-            setOnlineServerInfo({ roomId: displayRoomId, ping });
-          };
-
-          engineRef.current.startOnlineSession(guest as any, isSpectating);
-          setGameState(isSpectating ? 'spectating' : 'playing');
-          addNotification('info', `Connected to ${displayRoomId} via Edge.`);
-          return;
-        } catch (err) {
-          console.error('Failed to connect to Edge room:', err);
-          alert(`Could not connect to Room "${edgeRoomCode}". Please check your internet connection.`);
-          setGameState('menu');
-          return;
-        }
-      }
-
-      // Dedicated Official Arenas (medium / hard)
       try {
-        const client = new NetworkClient();
+        const partyHostAddress = getActivePartyHost();
+        const guest = new PartyGuest();
 
-        client.onPlayerJoined = (name, isSpec) => {
-          addNotification('join', isSpec ? 'joined as spectator' : 'entered the arena!', name);
+        guest.onPlayerJoined = (name) => {
+          addNotification('join', 'entered the arena!', name);
         };
-        client.onPlayerLeft = (name) => {
+        guest.onPlayerLeft = (name) => {
           addNotification('leave', 'left the arena.', name);
         };
-        client.onError = (msg) => {
+        guest.onRoomClosed = (msg) => {
+          alert(msg);
+          handleReturnToMenu();
+        };
+        guest.onError = (msg) => {
           alert(msg);
           handleReturnToMenu();
         };
 
-        await client.connect(
-          serverUrl,
-          roomId || 'medium',
+        await guest.connect(
+          partyHostAddress,
+          roomCode,
           settings.playerName || 'Player',
           settings.selectedSkinId || 'emerald-dragon',
           isSpectating
         );
 
-        const displayRoomId = roomId === 'hard' ? 'Apex Colosseum' : 'Emerald Glade';
-        setOnlineServerInfo({ roomId: displayRoomId, ping: client.ping });
-        client.onPing = (ping) => {
+        const displayRoomId = `Room [${roomCode}]`;
+        setOnlineServerInfo({ roomId: displayRoomId, ping: guest.ping });
+        guest.onPing = (ping) => {
           setOnlineServerInfo({ roomId: displayRoomId, ping });
         };
 
-        engineRef.current.startOnlineSession(client, isSpectating);
+        engineRef.current.startOnlineSession(guest as any, isSpectating);
         setGameState(isSpectating ? 'spectating' : 'playing');
         addNotification('info', `Connected to ${displayRoomId}`);
       } catch (err) {
-        console.error('Failed to connect to multiplayer server:', err);
-        alert('Could not connect to dedicated server. Please verify server status.');
+        console.error('Failed to connect to room:', err);
+        alert(`Could not connect to Room "${roomCode}". Please check your internet connection.`);
         setGameState('menu');
       }
     },
