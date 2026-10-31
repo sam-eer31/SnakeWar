@@ -5,6 +5,7 @@ import { SKINS, BOT_NAMES } from '../config/skins';
 import { FoodManager } from '../entities/FoodManager';
 import { PowerUp } from '../entities/PowerUp';
 import { BotDifficulty } from '../config/session';
+import { SpatialHashGrid, SnakeSegmentData } from '../core/SpatialHashGrid';
 
 export class BotManager {
   public bots: Map<string, { snake: Snake; brain: BotBrain }> = new Map();
@@ -146,7 +147,8 @@ export class BotManager {
     foodManager: FoodManager,
     powerUps: PowerUp[] = [],
     playerPos?: { x: number; y: number },
-    selfCollision: boolean = false
+    selfCollision: boolean = false,
+    segmentGrid?: SpatialHashGrid<SnakeSegmentData>
   ): Snake[] {
     const newlySpawned: Snake[] = [];
 
@@ -155,7 +157,7 @@ export class BotManager {
       if (bot.snake.isDead) {
         this.bots.delete(id);
       } else {
-        bot.brain.update(dt, deltaRatio, allSnakes, foodManager, powerUps, selfCollision);
+        bot.brain.update(dt, deltaRatio, allSnakes, foodManager, powerUps, selfCollision, segmentGrid);
       }
     }
 

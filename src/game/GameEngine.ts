@@ -12,6 +12,7 @@ import { GAME_CONFIG } from './config/constants';
 import { GameSettings, DEFAULT_SETTINGS } from './config/settings';
 import { ArenaSessionConfig, DEFAULT_SESSION_CONFIG } from './config/session';
 import { NetworkClient } from './network/NetworkClient';
+import { SpatialHashGrid, SnakeSegmentData } from './core/SpatialHashGrid';
 
 export interface LeaderboardEntry {
   id: string;
@@ -80,6 +81,7 @@ export class GameEngine {
   public onLeaderboardUpdate?: (leaderboard: LeaderboardEntry[]) => void;
   public onGameOver?: (stats: GameOverStats) => void;
   public dpr: number = 1;
+  public segmentGrid: SpatialHashGrid<SnakeSegmentData> = new SpatialHashGrid<SnakeSegmentData>(140);
 
   constructor(canvas: HTMLCanvasElement, settings: GameSettings = DEFAULT_SETTINGS) {
     this.canvas = canvas;
@@ -163,6 +165,7 @@ export class GameEngine {
       this.sessionConfig.botDifficulty
     );
     this.allSnakes = [this.playerSnake, ...bots];
+    this.rebuildSegmentGrid();
 
     // Initial power-up spawn (if enabled for this session)
     if (this.sessionConfig.enablePowerUps) {
@@ -553,7 +556,7 @@ export class GameEngine {
       }
     }
 
-    // 3. Update Bots AI & Respawn
+    // 3. Update Bots AI & Respawn (passes segmentGrid for O(1) spatial perception)
     const newBots = this.botManager.update(
       dt,
       deltaRatio,
@@ -561,7 +564,8 @@ export class GameEngine {
       this.foodManager,
       this.powerUps,
       player && !player.isDead ? player.position : undefined,
-      this.sessionConfig.selfCollision
+      this.sessionConfig.selfCollision,
+      this.segmentGrid
     );
     if (newBots.length > 0) {
       this.allSnakes.push(...newBots);
@@ -579,6 +583,9 @@ export class GameEngine {
       if (snake.isDead) continue;
       snake.update(deltaRatio, dropPellet);
     }
+
+    // Rebuild spatial segment grid with updated snake coordinates
+    this.rebuildSegmentGrid();
 
     // 5. Collision & Interactions
     this.checkFoodInteractions();
@@ -771,9 +778,39 @@ export class GameEngine {
     }
   }
 
-  // Snake Head-to-Body Lethal Collisions
+  private rebuildSegmentGrid(): void {
+    this.segmentGrid.clear();
+    const count = this.allSnakes.length;
+    for (let i = 0; i < count; i++) {
+      const snake = this.allSnakes[i];
+      if (snake.isDead || snake.hasSpawnProtection) continue;
+
+      const segs = snake.segments;
+      const segCount = segs.length;
+      for (let s = 0; s < segCount; s++) {
+        const seg = segs[s];
+        this.segmentGrid.insert({
+          id: `${snake.id}_${s}`,
+          x: seg.x,
+          y: seg.y,
+          radius: seg.radius,
+          data: {
+            snake,
+            segmentIndex: s,
+            x: seg.x,
+            y: seg.y,
+            radius: seg.radius,
+          },
+        });
+      }
+    }
+  }
+
+  // Snake Head-to-Body Lethal Collisions (Accelerated via SpatialHashGrid)
   private checkSnakeCollisions(): void {
-    for (const snake of this.allSnakes) {
+    const snakeCount = this.allSnakes.length;
+    for (let s = 0; s < snakeCount; s++) {
+      const snake = this.allSnakes[s];
       if (snake.isDead) continue;
       if (snake.hasPowerUp('ghost')) continue; // Ghost phase immune to collisions!
       if (snake.hasSpawnProtection) continue; // Spawn protection: immune to dying for 3 seconds
@@ -781,42 +818,30 @@ export class GameEngine {
       const head = snake.position;
       const headHitRadius = snake.radius * GAME_CONFIG.HEAD_COLLISION_RADIUS_FACTOR;
 
-      for (const other of this.allSnakes) {
-        if (other.isDead) continue;
-        if (other.hasSpawnProtection) continue; // Spawn protection: cannot kill others for 3 seconds
+      // Query only segments physically overlapping or touching head
+      const queryRadius = headHitRadius + GAME_CONFIG.MAX_RADIUS * GAME_CONFIG.BODY_COLLISION_RADIUS_FACTOR;
+      const nearbyItems = this.segmentGrid.queryRadius(head.x, head.y, queryRadius);
+
+      for (let i = 0; i < nearbyItems.length; i++) {
+        const item = nearbyItems[i].data;
+        const other = item.snake;
+        if (other.isDead || other.hasSpawnProtection) continue;
 
         // By default, allow crossing own body (Slither.io style).
         // If selfCollision session rule is enabled (Classic Snake mode), biting own body is lethal.
-        if (other.id === snake.id && !this.sessionConfig.selfCollision) continue;
-
-        // Broadphase reach culling: skip segment checks if snakes are physically out of reach
-        if (other.id !== snake.id) {
-          const maxReach = other.segments.length * GAME_CONFIG.SEGMENT_DISTANCE + other.radius + headHitRadius + 40;
-          const dxH = head.x - other.position.x;
-          const dyH = head.y - other.position.y;
-          if (dxH * dxH + dyH * dyH > maxReach * maxReach) {
-            continue;
-          }
+        if (other.id === snake.id) {
+          if (!this.sessionConfig.selfCollision || item.segmentIndex < 10) continue;
         }
 
-        // Skip collision with own head and first few segments when self-collision is enabled
-        const startSeg = other.id === snake.id ? 10 : 0;
-        const segCount = other.segments.length;
+        const dx = head.x - item.x;
+        const dy = head.y - item.y;
+        const hitDist = headHitRadius + item.radius * GAME_CONFIG.BODY_COLLISION_RADIUS_FACTOR;
 
-        for (let i = startSeg; i < segCount; i++) {
-          const seg = other.segments[i];
-          const dx = head.x - seg.x;
-          const dy = head.y - seg.y;
-          const hitDist = headHitRadius + seg.radius * GAME_CONFIG.BODY_COLLISION_RADIUS_FACTOR;
-
-          if (dx * dx + dy * dy < hitDist * hitDist) {
-            // Lethal collision! snake dies
-            this.killSnake(snake, other);
-            break;
-          }
+        if (dx * dx + dy * dy < hitDist * hitDist) {
+          // Lethal collision! snake dies
+          this.killSnake(snake, other);
+          break;
         }
-
-        if (snake.isDead) break;
       }
     }
   }

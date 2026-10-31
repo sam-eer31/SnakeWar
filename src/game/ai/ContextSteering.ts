@@ -2,6 +2,7 @@ import { Snake } from '../entities/Snake';
 import { Vector2D } from '../core/Vector2D';
 import { FoodManager } from '../entities/FoodManager';
 import { GAME_CONFIG } from '../config/constants';
+import { SpatialHashGrid, SnakeSegmentData } from '../core/SpatialHashGrid';
 import {
   BotState,
   BotTier,
@@ -42,7 +43,8 @@ export class ContextSteeringEngine {
     otherSnakes: Snake[],
     foodManager: FoodManager,
     selfCollision: boolean,
-    viewDist: number
+    viewDist: number,
+    segmentGrid?: SpatialHashGrid<SnakeSegmentData>
   ): ContextDecision {
     const head = snake.position;
     const currentAngle = snake.angle;
@@ -121,41 +123,30 @@ export class ContextSteeringEngine {
     // 2. SNAKE BODIES OBSTACLE DETECTION (Exact Ray-Capsule Projections)
     // =========================================================================
     if (!hasGhost) {
-      for (const other of otherSnakes) {
-        if (other.isDead || other.hasSpawnProtection) continue;
-        const isSelf = other.id === snake.id;
-        if (isSelf && (!selfCollision && (state === 'CIRCLE' || snake.segments.length < 18))) continue;
-
-        // Bounding reach check: skip snake if entirely outside view
-        if (!isSelf) {
-          const maxReach = other.segments.length * GAME_CONFIG.SEGMENT_DISTANCE + 80;
-          const maxDist = lookAhead + maxReach;
-          const dxH = other.position.x - head.x;
-          const dyH = other.position.y - head.y;
-          if (dxH * dxH + dyH * dyH > maxDist * maxDist) continue;
-        }
-
-        // Self-collision skip: ignore neck segments so normal turning doesn't flag own body
-        const selfSkip = isSelf
-          ? Math.max(18, Math.floor((snake.radius * 3.6) / GAME_CONFIG.SEGMENT_DISTANCE))
-          : 0;
-
-        // Subsample segments based on distance for silky 120fps performance
-        const dxO = other.position.x - head.x;
-        const dyO = other.position.y - head.y;
-        const otherDistSq = dxO * dxO + dyO * dyO;
-        const step = otherDistSq > 250 * 250 ? (tier === 'hard' ? 2 : 3) : 1;
-
+      if (segmentGrid) {
+        // Spatial hash accelerated segment obstacle perception: O(1) query of local cells
         const tierBaseMargin = tier === 'hard' ? 14 : tier === 'medium' ? 20 : 26;
-        const safeDist = snake.radius + (other.radius || snake.radius) + (isSelf ? 10 : tierBaseMargin);
-        const safeDistSq = safeDist * safeDist;
-        const checkRangeSq = (lookAhead + safeDist) * (lookAhead + safeDist);
+        const queryRadius = lookAhead + snake.radius + GAME_CONFIG.MAX_RADIUS + 30;
+        const nearbySegs = segmentGrid.queryRadius(head.x, head.y, queryRadius);
 
-        const segs = other.segments;
-        for (let s = selfSkip; s < segs.length; s += step) {
-          const seg = segs[s];
-          const dx = seg.x - head.x;
-          const dy = seg.y - head.y;
+        for (let j = 0; j < nearbySegs.length; j++) {
+          const item = nearbySegs[j].data;
+          const other = item.snake;
+          if (other.isDead || other.hasSpawnProtection) continue;
+
+          const isSelf = other.id === snake.id;
+          if (isSelf) {
+            if (!selfCollision && (state === 'CIRCLE' || snake.segments.length < 18)) continue;
+            const selfSkip = Math.max(18, Math.floor((snake.radius * 3.6) / GAME_CONFIG.SEGMENT_DISTANCE));
+            if (item.segmentIndex < selfSkip) continue;
+          }
+
+          const safeDist = snake.radius + item.radius + (isSelf ? 10 : tierBaseMargin);
+          const safeDistSq = safeDist * safeDist;
+          const checkRangeSq = (lookAhead + safeDist) * (lookAhead + safeDist);
+
+          const dx = item.x - head.x;
+          const dy = item.y - head.y;
           const distSq = dx * dx + dy * dy;
           if (distSq > checkRangeSq) continue;
 
@@ -166,13 +157,11 @@ export class ContextSteeringEngine {
 
           for (let i = 0; i < NUM_SLOTS; i++) {
             const proj = dx * this.cosAngles[i] + dy * this.sinAngles[i];
-            // Ray pointing away from segment?
             if (proj <= 0 || proj > lookAhead + safeDist) continue;
 
             const perpDistSq = distSq - proj * proj;
             if (perpDistSq >= safeDistSq) continue;
 
-            // Ray intersects the capsule around this segment
             const corridorHalfWidth = Math.sqrt(Math.max(0, safeDistSq - perpDistSq));
             const hitDist = Math.max(0, proj - corridorHalfWidth);
 
@@ -183,6 +172,72 @@ export class ContextSteeringEngine {
             } else {
               if (hitDist < this.slotMinHit[i]) {
                 this.slotMinHit[i] = hitDist;
+              }
+            }
+          }
+        }
+      } else {
+        for (const other of otherSnakes) {
+          if (other.isDead || other.hasSpawnProtection) continue;
+          const isSelf = other.id === snake.id;
+          if (isSelf && (!selfCollision && (state === 'CIRCLE' || snake.segments.length < 18))) continue;
+
+          // Bounding reach check: skip snake if entirely outside view
+          if (!isSelf) {
+            const maxReach = other.segments.length * GAME_CONFIG.SEGMENT_DISTANCE + 80;
+            const maxDist = lookAhead + maxReach;
+            const dxH = other.position.x - head.x;
+            const dyH = other.position.y - head.y;
+            if (dxH * dxH + dyH * dyH > maxDist * maxDist) continue;
+          }
+
+          // Self-collision skip: ignore neck segments so normal turning doesn't flag own body
+          const selfSkip = isSelf
+            ? Math.max(18, Math.floor((snake.radius * 3.6) / GAME_CONFIG.SEGMENT_DISTANCE))
+            : 0;
+
+          // Subsample segments based on distance for silky 120fps performance
+          const dxO = other.position.x - head.x;
+          const dyO = other.position.y - head.y;
+          const otherDistSq = dxO * dxO + dyO * dyO;
+          const step = otherDistSq > 250 * 250 ? (tier === 'hard' ? 2 : 3) : 1;
+
+          const tierBaseMargin = tier === 'hard' ? 14 : tier === 'medium' ? 20 : 26;
+          const safeDist = snake.radius + (other.radius || snake.radius) + (isSelf ? 10 : tierBaseMargin);
+          const safeDistSq = safeDist * safeDist;
+          const checkRangeSq = (lookAhead + safeDist) * (lookAhead + safeDist);
+
+          const segs = other.segments;
+          for (let s = selfSkip; s < segs.length; s += step) {
+            const seg = segs[s];
+            const dx = seg.x - head.x;
+            const dy = seg.y - head.y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > checkRangeSq) continue;
+
+            const directDist = Math.sqrt(distSq);
+            if (directDist < minThreatDist && !isSelf) {
+              minThreatDist = directDist;
+            }
+
+            for (let i = 0; i < NUM_SLOTS; i++) {
+              const proj = dx * this.cosAngles[i] + dy * this.sinAngles[i];
+              if (proj <= 0 || proj > lookAhead + safeDist) continue;
+
+              const perpDistSq = distSq - proj * proj;
+              if (perpDistSq >= safeDistSq) continue;
+
+              const corridorHalfWidth = Math.sqrt(Math.max(0, safeDistSq - perpDistSq));
+              const hitDist = Math.max(0, proj - corridorHalfWidth);
+
+              if (isSelf && !selfCollision) {
+                if (hitDist < this.slotMinHitSelf[i]) {
+                  this.slotMinHitSelf[i] = hitDist;
+                }
+              } else {
+                if (hitDist < this.slotMinHit[i]) {
+                  this.slotMinHit[i] = hitDist;
+                }
               }
             }
           }

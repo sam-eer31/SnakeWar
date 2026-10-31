@@ -90,10 +90,10 @@ export const GameView: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Handle full screen resize with Retina / High-DPI support
+    // Handle full screen resize with high-performance capped DPI (prevents 4K fill-rate lag)
     const handleResize = () => {
       if (!canvas) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
       canvas.width = Math.floor(window.innerWidth * dpr);
       canvas.height = Math.floor(window.innerHeight * dpr);
       canvas.style.width = `${window.innerWidth}px`;

@@ -1,15 +1,23 @@
-export interface SpatialItem {
+export interface SpatialItem<T = any> {
   id: string;
   x: number;
   y: number;
   radius: number;
-  data: any;
+  data: T;
   _queryId?: number;
+}
+
+export interface SnakeSegmentData {
+  snake: any;
+  segmentIndex: number;
+  x: number;
+  y: number;
+  radius: number;
 }
 
 export class SpatialHashGrid<T = any> {
   private cellSize: number;
-  private cells: Map<number, SpatialItem[]>;
+  private cells: Map<number, SpatialItem<T>[]>;
   private itemCells: Map<string, number[]>;
   private currentQueryId: number = 1;
 
@@ -29,7 +37,7 @@ export class SpatialHashGrid<T = any> {
     this.itemCells.clear();
   }
 
-  insert(item: SpatialItem): void {
+  insert(item: SpatialItem<T>): void {
     const minCx = Math.floor((item.x - item.radius) / this.cellSize);
     const maxCx = Math.floor((item.x + item.radius) / this.cellSize);
     const minCy = Math.floor((item.y - item.radius) / this.cellSize);
@@ -73,13 +81,13 @@ export class SpatialHashGrid<T = any> {
     this.itemCells.delete(itemId);
   }
 
-  updateItem(item: SpatialItem): void {
+  updateItem(item: SpatialItem<T>): void {
     this.remove(item.id);
     this.insert(item);
   }
 
-  queryRadius(x: number, y: number, radius: number): SpatialItem[] {
-    const results: SpatialItem[] = [];
+  queryRadius(x: number, y: number, radius: number): SpatialItem<T>[] {
+    const results: SpatialItem<T>[] = [];
     const qId = ++this.currentQueryId;
     if (this.currentQueryId > 2000000000) this.currentQueryId = 1;
 

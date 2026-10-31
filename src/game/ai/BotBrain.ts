@@ -3,6 +3,7 @@ import { Vector2D } from '../core/Vector2D';
 import { GAME_CONFIG } from '../config/constants';
 import { FoodManager } from '../entities/FoodManager';
 import { PowerUp } from '../entities/PowerUp';
+import { SpatialHashGrid, SnakeSegmentData } from '../core/SpatialHashGrid';
 import {
   BotState,
   BotTier,
@@ -163,7 +164,8 @@ export class BotBrain {
     otherSnakes: Snake[],
     foodManager: FoodManager,
     powerUps: PowerUp[] = [],
-    selfCollision: boolean = false
+    selfCollision: boolean = false,
+    segmentGrid?: SpatialHashGrid<SnakeSegmentData>
   ): void {
     if (this.snake.isDead) return;
 
@@ -344,7 +346,8 @@ export class BotBrain {
         otherSnakes,
         foodManager,
         selfCollision,
-        snapshot.viewDistance
+        snapshot.viewDistance,
+        segmentGrid
       );
 
       this.lastDecision = decision;

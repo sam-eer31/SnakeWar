@@ -296,6 +296,9 @@ function renderRealisticDragonSerpent(
 
   // 4. 3D Dragon Scale Body Segments (spaced by distance stride for smooth, high-fidelity scale flow)
   const hasBodySprite = !!sprites?.body && isSpriteReady(sprites.body);
+  const baseTransform = ctx.getTransform();
+  const dprX = baseTransform.a;
+  const dprY = baseTransform.d;
 
   if (hasBodySprite) {
     // Select vertebra positions using cumulative distance stride (~0.68 * radius)
@@ -310,25 +313,26 @@ function renderRealisticDragonSerpent(
       }
     }
 
-    // Draw from tail to neck
+    // Draw from tail to neck using direct hardware matrix writes (zero context save/restore state cloning)
     for (const idx of drawnIndices) {
       const p = points[idx];
       const segW = p.r * 2.15;
       const segH = p.r * 2.25;
+      const cos = Math.cos(p.angle);
+      const sin = Math.sin(p.angle);
 
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle);
+      ctx.setTransform(cos * dprX, sin * dprY, -sin * dprX, cos * dprY, p.x * dprX, p.y * dprY);
       ctx.drawImage(sprites.body, -segW * 0.5, -segH * 0.5, segW, segH);
-      ctx.restore();
     }
+    ctx.setTransform(baseTransform);
   } else {
     // High-contrast fallback scales if asset is still loading
     for (let i = segCount - 1; i >= 0; i--) {
       const p = points[i];
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle);
+      const cos = Math.cos(p.angle);
+      const sin = Math.sin(p.angle);
+
+      ctx.setTransform(cos * dprX, sin * dprY, -sin * dprX, cos * dprY, p.x * dprX, p.y * dprY);
 
       // Base disc
       ctx.fillStyle = skin.bodyColors[i % skin.bodyColors.length] || skin.headColor;
@@ -343,9 +347,8 @@ function renderRealisticDragonSerpent(
       ctx.moveTo(-p.r * 0.8, 0);
       ctx.lineTo(p.r * 0.8, 0);
       ctx.stroke();
-
-      ctx.restore();
     }
+    ctx.setTransform(baseTransform);
   }
 
   // 5. Hyper-Realistic 3D Dragon Head (Majestic proportions matching the reference dragon)
