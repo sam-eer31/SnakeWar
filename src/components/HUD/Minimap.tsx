@@ -28,8 +28,12 @@ export const Minimap: React.FC<MinimapProps> = ({
     if (!ctx) return;
 
     const renderMinimap = () => {
-      // Fixed internal high-DPI buffer
-      const size = 160;
+      // Dynamic high-DPI buffer based on actual rendered element size (1/10 of screen)
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const displaySize = Math.round(rect.width) || 120;
+      const size = Math.round(displaySize * dpr);
+
       if (canvas.width !== size || canvas.height !== size) {
         canvas.width = size;
         canvas.height = size;
@@ -37,13 +41,14 @@ export const Minimap: React.FC<MinimapProps> = ({
 
       const center = size / 2;
       const mapScale = (size * 0.48) / arenaRadius;
+      const scale = size / 160;
 
       ctx.clearRect(0, 0, size, size);
 
       // Dark radar arena circle background
       ctx.fillStyle = 'rgba(10, 14, 26, 0.85)';
       ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = Math.max(1.5, 2 * scale);
       ctx.beginPath();
       ctx.arc(center, center, arenaRadius * mapScale, 0, Math.PI * 2);
       ctx.fill();
@@ -51,7 +56,7 @@ export const Minimap: React.FC<MinimapProps> = ({
 
       // Subtle radar crosshair rings
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = Math.max(1, 1 * scale);
       ctx.beginPath();
       ctx.arc(center, center, arenaRadius * 0.5 * mapScale, 0, Math.PI * 2);
       ctx.stroke();
@@ -62,7 +67,7 @@ export const Minimap: React.FC<MinimapProps> = ({
         const py = center + p.position.y * mapScale;
         ctx.fillStyle = '#f59e0b';
         ctx.beginPath();
-        ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+        ctx.arc(px, py, Math.max(2, 2.5 * scale), 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -74,22 +79,22 @@ export const Minimap: React.FC<MinimapProps> = ({
 
         if (!snake.isBot) {
           // Real human players: Vibrant glowing green dot with pulsing beacon
-          const pulse = Math.sin(Date.now() * 0.008) * 1.5;
+          const pulse = Math.sin(Date.now() * 0.008) * 1.5 * scale;
           ctx.fillStyle = '#22c55e';
           ctx.beginPath();
-          ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+          ctx.arc(sx, sy, Math.max(3, 3.5 * scale), 0, Math.PI * 2);
           ctx.fill();
 
           ctx.strokeStyle = 'rgba(34, 197, 94, 0.5)';
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = Math.max(1, 1.5 * scale);
           ctx.beginPath();
-          ctx.arc(sx, sy, 5.5 + pulse, 0, Math.PI * 2);
+          ctx.arc(sx, sy, Math.max(4.5, 5.5 * scale + pulse), 0, Math.PI * 2);
           ctx.stroke();
         } else {
           // AI bot snakes: Subtle slate gray
           ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
           ctx.beginPath();
-          ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
+          ctx.arc(sx, sy, Math.max(1.8, 2.2 * scale), 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -100,17 +105,17 @@ export const Minimap: React.FC<MinimapProps> = ({
         const py = center + playerSnake.position.y * mapScale;
 
         // Pulse ring
-        const pulse = Math.sin(Date.now() * 0.006) * 1.2;
+        const pulse = Math.sin(Date.now() * 0.006) * 1.2 * scale;
         ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = Math.max(1.5, 2 * scale);
         ctx.beginPath();
-        ctx.arc(px, py, 6.5 + pulse, 0, Math.PI * 2);
+        ctx.arc(px, py, Math.max(5, 6.5 * scale + pulse), 0, Math.PI * 2);
         ctx.stroke();
 
         // Dot
         ctx.fillStyle = '#60a5fa';
         ctx.beginPath();
-        ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+        ctx.arc(px, py, Math.max(3, 3.5 * scale), 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -124,10 +129,10 @@ export const Minimap: React.FC<MinimapProps> = ({
   }, [playerSnake, allSnakes, powerUps, arenaRadius]);
 
   return (
-    <div className="relative rounded-full p-1 bg-[#0a0e1a]/95 border border-[#1e293b] pointer-events-none select-none flex-shrink-0">
+    <div className="relative rounded-full p-1 bg-[#0a0e1a]/95 border border-[#1e293b] pointer-events-none select-none flex-shrink-0 shadow-lg">
       <canvas
         ref={canvasRef}
-        className="w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full block"
+        className="w-[10vw] h-[10vw] min-w-[60px] min-h-[60px] max-w-[190px] max-h-[190px] rounded-full block aspect-square"
       />
     </div>
   );

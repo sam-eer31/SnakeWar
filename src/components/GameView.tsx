@@ -23,7 +23,7 @@ import { SnakeWarLoader } from './UI/SnakeWarLoader';
 import { MatchConnectingOverlay } from './UI/MatchConnectingOverlay';
 import { ArenaNotificationFeed, ArenaNotification } from './HUD/ArenaNotificationFeed';
 import { PartyHost, PartyGuest, getActivePartyHost } from '@/game/network/PartyClient';
-import { Home, Settings as SettingsIcon, Globe } from 'lucide-react';
+import { Home, Globe } from 'lucide-react';
 
 type GameState = 'menu' | 'playing' | 'spectating' | 'gameover';
 
@@ -648,26 +648,36 @@ export const GameView: React.FC = () => {
             <ScoreDisplay stats={playerStats} highScore={highScore} />
           </div>
 
-          {/* Top Right: Minimap Radar and Server Info */}
-          <div className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 z-20 flex flex-col items-end pointer-events-none">
-            {settings.showMinimap && (
-              <Minimap
-                playerSnake={engineRef.current?.playerSnake || null}
-                allSnakes={engineRef.current?.allSnakes || []}
-                powerUps={engineRef.current?.powerUps || []}
-                arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
-              />
-            )}
-            {onlineServerInfo && (
-              <div className="mt-1 bg-black/85 border border-emerald-500/30 rounded-lg px-1.5 py-0.5 text-[8px] font-mono text-emerald-300 flex items-center gap-1 shadow whitespace-nowrap">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>{onlineServerInfo.roomId.toUpperCase()} • {onlineServerInfo.ping}ms</span>
-              </div>
-            )}
-          </div>
+          {/* Top Right: Home Button + Minimap Radar + Server Info */}
+          <div className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 z-30 flex flex-col items-end gap-1.5 pointer-events-none">
+            <div className="flex items-start gap-2">
+              <button
+                onClick={handleReturnToMenu}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0a0e1a]/95 border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-lg pointer-events-auto shrink-0 mt-0.5"
+                title="Return to Menu"
+              >
+                <Home className="w-4 h-4" />
+              </button>
 
-          {/* Top-Right Arena Join/Leave Notification Feed */}
-          <div className="absolute top-[185px] sm:top-[200px] right-1.5 sm:right-2.5 z-20 pointer-events-none">
+              <div className="flex flex-col items-end pointer-events-none">
+                {settings.showMinimap && (
+                  <Minimap
+                    playerSnake={engineRef.current?.playerSnake || null}
+                    allSnakes={engineRef.current?.allSnakes || []}
+                    powerUps={engineRef.current?.powerUps || []}
+                    arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
+                  />
+                )}
+                {onlineServerInfo && (
+                  <div className="mt-1 bg-black/85 border border-emerald-500/30 rounded-lg px-1.5 py-0.5 text-[8px] font-mono text-emerald-300 flex items-center gap-1 shadow whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>{onlineServerInfo.roomId.toUpperCase()} • {onlineServerInfo.ping}ms</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Arena Join/Leave Notification Feed */}
             <ArenaNotificationFeed notifications={notifications} />
           </div>
 
@@ -676,8 +686,8 @@ export const GameView: React.FC = () => {
             <PowerUpStatus items={playerStats?.activePowerUps || []} />
           </div>
 
-          {/* Bottom Bar: FPS on BOTTOM LEFT, Boost Gauge Center, Controls on Right */}
-          <div className="absolute inset-x-0 bottom-0 p-1.5 sm:p-2.5 flex justify-between items-end w-full">
+          {/* Bottom Bar: FPS on BOTTOM LEFT, Boost Gauge Center */}
+          <div className="absolute inset-x-0 bottom-0 p-1.5 sm:p-2.5 flex justify-between items-end w-full pointer-events-none">
             {/* Bottom Left: FPS Counter */}
             <div className="flex items-center min-w-[70px]">
               {settings.showFps && playerStats && (
@@ -688,7 +698,7 @@ export const GameView: React.FC = () => {
             </div>
 
             {/* Center: Boost Gauge */}
-            <div className="flex-1 flex justify-center mb-1">
+            <div className="flex-1 flex justify-center mb-1 pointer-events-auto">
               <BoostGauge
                 mass={playerStats?.mass || 50}
                 isBoosting={isBoosting}
@@ -698,28 +708,8 @@ export const GameView: React.FC = () => {
               />
             </div>
 
-            {/* Bottom Right: Quick In-game Controls */}
-            <div className="flex items-center gap-2 pointer-events-auto min-w-[70px] justify-end">
-              <button
-                onClick={handleReturnToMenu}
-                className="w-9 h-9 rounded-xl bg-[#0a0e1a]/95 border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95"
-                title="Return to Menu"
-              >
-                <Home className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="w-9 h-9 rounded-xl bg-[#0a0e1a]/95 border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95"
-                title="Settings"
-              >
-                <SettingsIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Top-Right Arena Join/Leave Notification Feed in Spectator */}
-          <div className="absolute top-[185px] sm:top-[200px] right-1.5 sm:right-2.5 z-20 pointer-events-none">
-            <ArenaNotificationFeed notifications={notifications} />
+            {/* Bottom Right Spacer (to keep BoostGauge centered) */}
+            <div className="min-w-[70px]" />
           </div>
         </div>
       )}
@@ -737,38 +727,45 @@ export const GameView: React.FC = () => {
             />
           </div>
 
-          {/* Top Right: Minimap Radar and Arena Overview */}
-          <div className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 z-20 flex items-start gap-2 pointer-events-auto">
-            {settings.showMinimap && (
-              <Minimap
-                playerSnake={spectatedSnake}
-                allSnakes={engineRef.current?.allSnakes || []}
-                powerUps={engineRef.current?.powerUps || []}
-                arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
-              />
-            )}
-            <div className="bg-[#0a0e1a]/95 border border-[#1e293b] rounded-xl px-2.5 py-1.5 text-[10px] text-[#94a3b8] flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5 font-game font-bold text-[#f1f5f9] uppercase tracking-wider">
-                <Globe className="w-3.5 h-3.5 text-blue-400" />
-                <span>Arena: {sessionConfig.arenaRadius * 2}m</span>
-              </div>
-              <div className="text-[#94a3b8] font-game">
-                Snakes: <strong className="text-blue-400">{engineRef.current?.allSnakes.length || 0}</strong>
-              </div>
-              <div className="text-[#64748b] font-game text-[9px] uppercase tracking-wider">
-                Difficulty: <strong className="text-amber-400 capitalize">{sessionConfig.botDifficulty}</strong>
-              </div>
-              {onlineServerInfo && (
-                <div className="text-emerald-400 text-[9px] font-game uppercase tracking-wider flex items-center gap-1 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>PUBLIC ARENA • {onlineServerInfo.ping}ms</span>
-                </div>
+          {/* Top Right: Home Button + Minimap Radar and Arena Overview */}
+          <div className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 z-20 flex flex-col items-end gap-1.5 pointer-events-none">
+            <div className="flex items-start gap-2 pointer-events-auto">
+              <button
+                onClick={handleReturnToMenu}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0a0e1a]/95 border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-lg shrink-0 mt-0.5"
+                title="Return to Menu"
+              >
+                <Home className="w-4 h-4" />
+              </button>
+              {settings.showMinimap && (
+                <Minimap
+                  playerSnake={spectatedSnake}
+                  allSnakes={engineRef.current?.allSnakes || []}
+                  powerUps={engineRef.current?.powerUps || []}
+                  arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
+                />
               )}
+              <div className="bg-[#0a0e1a]/95 border border-[#1e293b] rounded-xl px-2.5 py-1.5 text-[10px] text-[#94a3b8] flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 font-game font-bold text-[#f1f5f9] uppercase tracking-wider">
+                  <Globe className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Arena: {sessionConfig.arenaRadius * 2}m</span>
+                </div>
+                <div className="text-[#94a3b8] font-game">
+                  Snakes: <strong className="text-blue-400">{engineRef.current?.allSnakes.length || 0}</strong>
+                </div>
+                <div className="text-[#64748b] font-game text-[9px] uppercase tracking-wider">
+                  Difficulty: <strong className="text-amber-400 capitalize">{sessionConfig.botDifficulty}</strong>
+                </div>
+                {onlineServerInfo && (
+                  <div className="text-emerald-400 text-[9px] font-game uppercase tracking-wider flex items-center gap-1 mt-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>PUBLIC ARENA • {onlineServerInfo.ping}ms</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Top-Right Arena Join/Leave Notification Feed in Spectator */}
-          <div className="absolute top-[185px] sm:top-[200px] right-1.5 sm:right-2.5 z-20 pointer-events-none">
+            {/* Arena Join/Leave Notification Feed in Spectator */}
             <ArenaNotificationFeed notifications={notifications} />
           </div>
 
