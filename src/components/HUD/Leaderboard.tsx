@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { LeaderboardEntry } from '@/game/GameEngine';
 
 interface LeaderboardProps {
@@ -22,37 +22,56 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
   onSelectSnake,
   isSpectating = false,
 }) => {
-  const isPlayerInTop10 = entries.some((e) => e.isPlayer);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+
+  // On mobile, show top 5 unless expanded; on sm+, show full 10
+  const maxMobileEntries = mobileExpanded ? 10 : 5;
+  const isPlayerInDisplayed = entries
+    .slice(0, maxMobileEntries)
+    .some((e) => e.isPlayer);
 
   return (
     <div
-      className={`w-44 sm:w-48 bg-black/55 backdrop-blur-md rounded-xl border border-white/10 p-2 sm:p-2.5 shadow-2xl select-none transition-all ${
+      className={`w-[134px] sm:w-[170px] bg-black/35 hover:bg-black/60 backdrop-blur-[2px] rounded-lg border border-white/10 p-1 sm:p-2 shadow-xl select-none transition-all ${
         isSpectating ? 'pointer-events-auto border-cyan-500/30' : 'pointer-events-none'
       }`}
     >
-      {/* Slither.io Clean Header */}
-      <div className="flex items-center justify-between pb-1 border-b border-white/10 mb-1">
-        <span className="text-[11px] font-bold tracking-wider uppercase text-slate-300">
-          Leaderboard
-        </span>
+      {/* Header */}
+      <div className="flex items-center justify-between pb-0.5 border-b border-white/10 mb-0.5">
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] sm:text-[10px] font-bold tracking-wider uppercase text-slate-300">
+            Top Snakes
+          </span>
+          {/* Subtle mobile expand toggle */}
+          <button
+            onClick={() => setMobileExpanded(!mobileExpanded)}
+            className="sm:hidden pointer-events-auto text-[8px] text-cyan-400/80 hover:text-cyan-300 px-0.5"
+            title={mobileExpanded ? 'Show top 5' : 'Show top 10'}
+          >
+            {mobileExpanded ? '▲' : '▼'}
+          </button>
+        </div>
+
         {isSpectating ? (
-          <span className="text-[9px] font-medium text-cyan-400 bg-cyan-950/60 px-1.5 py-0.2 rounded border border-cyan-800/40">
-            Click to Spec
+          <span className="text-[8px] sm:text-[9px] font-medium text-cyan-400 bg-cyan-950/60 px-1 py-0.2 rounded border border-cyan-800/40">
+            Spec
           </span>
         ) : playerRank ? (
-          <span className="text-[10px] font-mono font-bold text-cyan-400">
+          <span className="text-[9px] sm:text-[10px] font-mono font-bold text-cyan-400">
             #{playerRank}
           </span>
         ) : null}
       </div>
 
-      {/* Top 10 List */}
+      {/* Entries List */}
       <div className="space-y-[1px]">
         {entries.map((entry, index) => {
           const rank = index + 1;
           const isSelected = isSpectating && spectatingSnakeId === entry.id;
 
-          // Authentic clean typography
+          // Responsive visibility: hide ranks > 5 on mobile unless expanded
+          const isHiddenOnMobile = index >= 5 && !mobileExpanded;
+
           let nameColor = 'text-slate-200';
           let dotColor = '#94a3b8';
 
@@ -77,7 +96,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                 if (onSelectSnake) onSelectSnake(entry.id);
               }}
               title={isSpectating ? `Spectate ${entry.name}` : undefined}
-              className={`flex items-center justify-between px-1.5 py-[2px] rounded text-[11px] leading-tight transition-colors ${
+              className={`items-center justify-between px-1 py-[1px] rounded text-[10px] sm:text-[11px] leading-tight transition-colors ${
+                isHiddenOnMobile ? 'hidden sm:flex' : 'flex'
+              } ${
                 isSelected
                   ? 'bg-cyan-500/25 border border-cyan-400/50 text-white font-bold'
                   : entry.isPlayer
@@ -87,19 +108,19 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                   : ''
               }`}
             >
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="w-3.5 text-slate-400 text-[10px] font-mono text-right flex-shrink-0">
+              <div className="flex items-center gap-1 truncate">
+                <span className="w-3 sm:w-3.5 text-slate-400 text-[9px] sm:text-[10px] font-mono text-right flex-shrink-0">
                   {rank}.
                 </span>
                 <span
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   style={{ backgroundColor: dotColor }}
                 />
-                <span className={`truncate max-w-[76px] sm:max-w-[86px] ${nameColor}`}>
+                <span className={`truncate max-w-[50px] sm:max-w-[76px] ${nameColor}`}>
                   {entry.name}
                 </span>
               </div>
-              <span className="font-mono text-[10px] text-slate-300 font-medium pl-1 flex-shrink-0">
+              <span className="font-mono text-[9px] sm:text-[10px] text-slate-300 font-medium pl-1 flex-shrink-0">
                 {entry.score.toLocaleString()}
               </span>
             </div>
@@ -107,20 +128,20 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
         })}
       </div>
 
-      {/* If Player is outside Top 10, show player's rank at the bottom */}
-      {!isSpectating && !isPlayerInTop10 && playerRank && (
-        <div className="mt-1 pt-1 border-t border-white/10 flex items-center justify-between px-1.5 py-[2px] rounded bg-cyan-950/40 border border-cyan-500/20 text-[11px]">
-          <div className="flex items-center gap-1.5 truncate">
-            <span className="w-3.5 text-cyan-400 text-[10px] font-mono text-right flex-shrink-0">
+      {/* If Player is outside visible top list, show player's rank at the bottom */}
+      {!isSpectating && !isPlayerInDisplayed && playerRank && (
+        <div className="mt-0.5 pt-0.5 border-t border-white/10 flex items-center justify-between px-1 py-[1px] rounded bg-cyan-950/40 border border-cyan-500/20 text-[10px] sm:text-[11px]">
+          <div className="flex items-center gap-1 truncate">
+            <span className="w-3 sm:w-3.5 text-cyan-400 text-[9px] sm:text-[10px] font-mono text-right flex-shrink-0">
               #{playerRank}
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
-            <span className="truncate max-w-[76px] sm:max-w-[86px] text-cyan-300 font-bold">
+            <span className="truncate max-w-[50px] sm:max-w-[76px] text-cyan-300 font-bold">
               {playerName}
             </span>
           </div>
           {playerScore !== undefined && (
-            <span className="font-mono text-[10px] text-cyan-300 font-medium pl-1 flex-shrink-0">
+            <span className="font-mono text-[9px] sm:text-[10px] text-cyan-300 font-medium pl-1 flex-shrink-0">
               {playerScore.toLocaleString()}
             </span>
           )}

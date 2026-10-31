@@ -79,17 +79,6 @@ export const SkinSelector: React.FC<SkinSelectorProps> = ({
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-slate-100">{skin.name}</span>
-                    {skin.accessory && skin.accessory !== 'none' && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 capitalize">
-                        {skin.accessory === 'crown'
-                          ? '👑 Crown'
-                          : skin.accessory === 'halo'
-                          ? '😇 Halo'
-                          : skin.accessory === 'glasses'
-                          ? '🕶️ Shades'
-                          : '😈 Horns'}
-                      </span>
-                    )}
                   </div>
                   {isSelected && (
                     <span className="text-xs font-bold text-cyan-400 flex items-center gap-1">
@@ -98,21 +87,8 @@ export const SkinSelector: React.FC<SkinSelectorProps> = ({
                   )}
                 </div>
 
-                <div className="bg-slate-950/70 rounded-xl p-1 mb-2 border border-slate-800/80">
+                <div className="bg-slate-950/70 rounded-xl p-1 border border-slate-800/80">
                   <SkinCanvasPreview skin={skin} />
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span className="capitalize">{skin.patternType} pattern</span>
-                  <div className="flex items-center gap-1">
-                    {skin.bodyColors.slice(0, 4).map((c, idx) => (
-                      <span
-                        key={idx}
-                        className="w-3.5 h-3.5 rounded-full border border-black/30"
-                        style={{ backgroundColor: c }}
-                      />
-                    ))}
-                  </div>
                 </div>
               </div>
             );

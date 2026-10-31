@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Snake.io - Ultimate Serpent Battle Royale',
-  description: 'Fast-paced, smooth 60fps slither and worm arena game. Completely offline and responsive.',
+  title: 'SnakeWar - Ultimate Serpent Battle Royale',
+  description: 'Fast-paced, smooth 60fps realistic serpent battle royale arena game.',
 };
 
 export const viewport: Viewport = {

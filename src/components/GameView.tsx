@@ -18,6 +18,7 @@ import { SkinSelector } from './Menus/SkinSelector';
 import { SettingsModal } from './Menus/SettingsModal';
 import { MatchSetupModal } from './Menus/MatchSetupModal';
 import { PublicArenasModal } from './Menus/PublicArenasModal';
+import { SnakeWarLoader } from './UI/SnakeWarLoader';
 import { NetworkClient } from '@/game/network/NetworkClient';
 
 type GameState = 'menu' | 'playing' | 'spectating' | 'gameover';
@@ -27,6 +28,7 @@ export const GameView: React.FC = () => {
   const engineRef = useRef<GameEngine | null>(null);
 
   const [gameState, setGameState] = useState<GameState>('menu');
+  const [hasEntered, setHasEntered] = useState<boolean>(false);
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
   const [sessionConfig, setSessionConfig] = useState<ArenaSessionConfig>(DEFAULT_SESSION_CONFIG);
   const [highScore, setHighScore] = useState<number>(0);
@@ -390,7 +392,7 @@ export const GameView: React.FC = () => {
           serverUrl,
           roomId,
           settings.playerName || 'Player',
-          settings.selectedSkinId || 'cyber-neon',
+          settings.selectedSkinId || 'emerald-dragon',
           isSpectating
         );
 
@@ -422,25 +424,32 @@ export const GameView: React.FC = () => {
 
       {/* In-Game Playing HUD */}
       {gameState === 'playing' && (
-        <div className="fixed inset-0 pointer-events-none p-3 sm:p-5 flex flex-col justify-between z-20">
-          {/* Top Bar: Minimap on TOP LEFT, Small Leaderboard on TOP RIGHT */}
+        <div className="fixed inset-0 pointer-events-none p-1.5 sm:p-2.5 flex flex-col justify-between z-20">
+          {/* Top Bar: Minimap & Score on TOP LEFT, Small Leaderboard on TOP RIGHT */}
           <div className="flex justify-between items-start w-full">
-            {/* Top Left: Minimap Radar & Server Info */}
-            <div className="flex flex-col items-start gap-1 pointer-events-none">
-              {settings.showMinimap && (
-                <Minimap
-                  playerSnake={engineRef.current?.playerSnake || null}
-                  allSnakes={engineRef.current?.allSnakes || []}
-                  powerUps={engineRef.current?.powerUps || []}
-                  arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
-                />
-              )}
-              {onlineServerInfo && (
-                <div className="bg-black/60 backdrop-blur-md border border-emerald-500/30 rounded-lg px-2 py-0.5 text-[9px] font-mono text-emerald-300 flex items-center gap-1 shadow">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>{onlineServerInfo.roomId.toUpperCase()} SERVER • {onlineServerInfo.ping}ms</span>
-                </div>
-              )}
+            {/* Top Left: Minimap Radar on left, ScoreDisplay right beside it */}
+            <div className="flex items-start gap-1 sm:gap-1.5 pointer-events-none">
+              <div className="flex flex-col items-center flex-shrink-0">
+                {settings.showMinimap && (
+                  <Minimap
+                    playerSnake={engineRef.current?.playerSnake || null}
+                    allSnakes={engineRef.current?.allSnakes || []}
+                    powerUps={engineRef.current?.powerUps || []}
+                    arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
+                  />
+                )}
+                {onlineServerInfo && (
+                  <div className="mt-1 bg-black/60 backdrop-blur-md border border-emerald-500/30 rounded-lg px-1.5 py-0.5 text-[8px] font-mono text-emerald-300 flex items-center gap-1 shadow whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>{onlineServerInfo.roomId.toUpperCase()} • {onlineServerInfo.ping}ms</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Score Display (Right side of map, stuck to top) */}
+              <div className="pt-0.5">
+                <ScoreDisplay stats={playerStats} highScore={highScore} />
+              </div>
             </div>
 
             {/* Top Right: Slither.io-style Compact Leaderboard */}
@@ -455,20 +464,19 @@ export const GameView: React.FC = () => {
           </div>
 
           {/* Active Power-Ups Badges (under minimap on left) */}
-          <div className="absolute top-36 left-3 sm:left-5">
+          <div className="absolute top-18 sm:top-22 left-1.5 sm:left-2.5">
             <PowerUpStatus items={playerStats?.activePowerUps || []} />
           </div>
 
-          {/* Bottom Bar: FPS & Score on BOTTOM LEFT, Boost Gauge Center, Controls on Right */}
+          {/* Bottom Bar: FPS on BOTTOM LEFT, Boost Gauge Center, Controls on Right */}
           <div className="flex justify-between items-end w-full">
-            {/* Bottom Left: FPS Counter & Score Display */}
-            <div className="flex flex-col items-start gap-1.5">
+            {/* Bottom Left: FPS Counter */}
+            <div className="flex items-center min-w-[70px]">
               {settings.showFps && playerStats && (
                 <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-md px-2 py-0.5 text-[10px] font-mono text-emerald-400 select-none shadow">
                   {playerStats.fps} FPS
                 </div>
               )}
-              <ScoreDisplay stats={playerStats} highScore={highScore} />
             </div>
 
             {/* Center: Boost Gauge */}
@@ -483,7 +491,7 @@ export const GameView: React.FC = () => {
             </div>
 
             {/* Bottom Right: Quick In-game Controls */}
-            <div className="flex items-center gap-2 pointer-events-auto">
+            <div className="flex items-center gap-2 pointer-events-auto min-w-[70px] justify-end">
               <button
                 onClick={handleReturnToMenu}
                 className="w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-slate-300 hover:text-white flex items-center justify-center text-sm shadow-xl transition-colors"
@@ -505,11 +513,11 @@ export const GameView: React.FC = () => {
 
       {/* Spectator Mode HUD */}
       {gameState === 'spectating' && (
-        <div className="fixed inset-0 pointer-events-none p-3 sm:p-5 flex flex-col justify-between z-20">
+        <div className="fixed inset-0 pointer-events-none p-2 sm:p-3.5 flex flex-col justify-between z-20">
           {/* Top Bar: Minimap & Arena Info on TOP LEFT, Small Leaderboard on TOP RIGHT */}
           <div className="flex justify-between items-start w-full">
             {/* Top Left: Minimap Radar and Arena Overview */}
-            <div className="flex items-start gap-2.5 pointer-events-auto">
+            <div className="flex items-start gap-2 pointer-events-auto">
               {settings.showMinimap && (
                 <Minimap
                   playerSnake={spectatedSnake}
@@ -518,19 +526,19 @@ export const GameView: React.FC = () => {
                   arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
                 />
               )}
-              <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-xl px-2.5 py-1.5 shadow-xl text-[11px] text-slate-300 flex flex-col gap-0.5">
-                <div className="flex items-center gap-1.5 font-bold text-slate-200">
+              <div className="bg-black/40 backdrop-blur-[2px] border border-white/10 rounded-lg px-2 py-1 shadow-lg text-[10px] text-slate-300 flex flex-col gap-0.5">
+                <div className="flex items-center gap-1 font-bold text-slate-200">
                   <span>🌐</span>
                   <span>Arena: {sessionConfig.arenaRadius * 2}m</span>
                 </div>
                 <div className="text-slate-300">
                   Snakes: <strong className="text-cyan-400">{engineRef.current?.allSnakes.length || 0}</strong>
                 </div>
-                <div className="text-slate-400 text-[10px]">
+                <div className="text-slate-400 text-[9px]">
                   Difficulty: <strong className="text-amber-300 capitalize">{sessionConfig.botDifficulty}</strong>
                 </div>
                 {onlineServerInfo && (
-                  <div className="text-emerald-400 text-[10px] font-mono flex items-center gap-1 mt-0.5">
+                  <div className="text-emerald-400 text-[9px] font-mono flex items-center gap-1 mt-0.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span>PUBLIC ARENA • {onlineServerInfo.ping}ms</span>
                   </div>
@@ -652,6 +660,11 @@ export const GameView: React.FC = () => {
           onUpdateSettings={handleUpdateSettings}
           onClose={() => setShowSettings(false)}
         />
+      )}
+
+      {/* SnakeWar Entrance Preloader Overlay */}
+      {!hasEntered && (
+        <SnakeWarLoader onEnter={() => setHasEntered(true)} />
       )}
     </div>
   );

@@ -114,7 +114,7 @@ export class GameEngine {
 
   start(playerName?: string, skinId?: string, sessionConfig?: ArenaSessionConfig): void {
     const name = playerName || this.settings.playerName || 'Player 1';
-    const skin = skinId || this.settings.selectedSkinId || 'cyber-neon';
+    const skin = skinId || this.settings.selectedSkinId || 'emerald-dragon';
     if (sessionConfig) {
       this.sessionConfig = sessionConfig;
     }
@@ -368,7 +368,7 @@ export class GameEngine {
 
   joinArenaAsPlayer(playerName?: string, skinId?: string): void {
     const name = playerName || this.settings.playerName || 'Player 1';
-    const skin = skinId || this.settings.selectedSkinId || 'cyber-neon';
+    const skin = skinId || this.settings.selectedSkinId || 'emerald-dragon';
 
     const spawnAngle = Math.random() * Math.PI * 2;
     const spawnDist = (Math.random() * 0.4 + 0.1) * this.sessionConfig.arenaRadius;

@@ -67,36 +67,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Gameplay Rules */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-              Gameplay Rules
-            </label>
-            <div className="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-200 flex items-center gap-1.5">
-                    <span>🔄 Self-Collision (Tail Biting)</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                      {settings.selfCollision ? 'Hardcore' : 'Slither Default'}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    {settings.selfCollision
-                      ? 'Lethal: Biting your own body kills you (Classic Snake rule).'
-                      : 'Safe: You can freely slither across your own body (Slither.io rule).'}
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={settings.selfCollision}
-                  onChange={(e) => update({ selfCollision: e.target.checked })}
-                  className="w-5 h-5 accent-cyan-400 rounded cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Visual Toggles */}
           <div className="space-y-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4">
             <div className="flex items-center justify-between">

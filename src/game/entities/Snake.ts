@@ -59,7 +59,7 @@ export class Snake {
     name: string,
     x: number,
     y: number,
-    skinId: string = 'cyber-neon',
+    skinId: string = 'emerald-dragon',
     isBot: boolean = false
   ) {
     this.id = id;

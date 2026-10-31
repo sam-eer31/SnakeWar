@@ -22,7 +22,7 @@ export interface GameSettings {
 
 export const DEFAULT_SETTINGS: GameSettings = {
   playerName: 'Player 1',
-  selectedSkinId: 'cyber-neon',
+  selectedSkinId: 'emerald-dragon',
   gameMode: 'classic',
   graphicsQuality: 'high',
   glowEffects: true,

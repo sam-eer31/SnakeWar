@@ -8,6 +8,10 @@ export class SoundManager {
 
   constructor() {}
 
+  public init(): void {
+    this.initCtx();
+  }
+
   private initCtx(): void {
     if (!this.ctx && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;

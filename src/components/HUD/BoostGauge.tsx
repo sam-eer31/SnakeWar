@@ -17,14 +17,14 @@ export const BoostGauge: React.FC<BoostGaugeProps> = ({ mass, isBoosting, hasTur
   const percentage = Math.round(ratio * 100);
 
   return (
-    <div className="flex flex-col items-center gap-1 select-none pointer-events-none">
-      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-300">
+    <div className="flex flex-col items-center gap-0.5 select-none pointer-events-none">
+      <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-300">
         <span className={isBoosting ? 'animate-bounce text-orange-400' : 'text-slate-400'}>
-          {hasTurbo ? '⚡ TURBO ACTIVE' : '🔥 BOOST'}
+          {hasTurbo ? '⚡ TURBO' : '🔥 BOOST'}
         </span>
       </div>
 
-      <div className="w-36 h-3 bg-slate-900/80 backdrop-blur-md rounded-full border border-slate-700/60 p-0.5 overflow-hidden shadow-lg relative">
+      <div className="w-28 sm:w-36 h-2 sm:h-2.5 bg-black/40 backdrop-blur-[2px] rounded-full border border-white/10 p-0.5 overflow-hidden shadow-lg relative">
         <div
           className={`h-full rounded-full transition-all duration-75 ${
             hasTurbo
@@ -36,8 +36,8 @@ export const BoostGauge: React.FC<BoostGaugeProps> = ({ mass, isBoosting, hasTur
           style={{ width: `${hasTurbo ? 100 : percentage}%` }}
         />
       </div>
-      <span className="text-[9px] text-slate-400 font-mono">
-        {hasTurbo ? 'Unlimited Speed' : 'Hold Left Click or Space'}
+      <span className="hidden sm:inline text-[8px] text-slate-400 font-mono">
+        {hasTurbo ? 'Unlimited Speed' : 'Hold Click / Space'}
       </span>
     </div>
   );
