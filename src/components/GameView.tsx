@@ -20,6 +20,7 @@ import { SettingsModal } from './Menus/SettingsModal';
 import { MatchSetupModal } from './Menus/MatchSetupModal';
 import { PublicArenasModal } from './Menus/PublicArenasModal';
 import { SnakeWarLoader } from './UI/SnakeWarLoader';
+import { MatchConnectingOverlay } from './UI/MatchConnectingOverlay';
 import { ArenaNotificationFeed, ArenaNotification } from './HUD/ArenaNotificationFeed';
 import { PartyHost, PartyGuest, getActivePartyHost } from '@/game/network/PartyClient';
 import { Home, Settings as SettingsIcon, Globe } from 'lucide-react';
@@ -49,6 +50,12 @@ export const GameView: React.FC = () => {
   const [showPublicArenas, setShowPublicArenas] = useState(false);
   const [onlineServerInfo, setOnlineServerInfo] = useState<{ roomId: string; ping: number } | null>(null);
   const [notifications, setNotifications] = useState<ArenaNotification[]>([]);
+  const [connectingState, setConnectingState] = useState<{
+    title: string;
+    subtitle: string;
+    roomCode?: string;
+    onCancel?: () => void;
+  } | null>(null);
 
   const addNotification = useCallback((type: 'join' | 'leave' | 'info', message: string, playerName?: string) => {
     const notif: ArenaNotification = {
@@ -488,9 +495,24 @@ export const GameView: React.FC = () => {
       if (!engineRef.current || !roomCode) return;
       setShowPublicArenas(false);
 
+      let activeGuest: PartyGuest | null = null;
+      setConnectingState({
+        title: isSpectating ? 'SPECTATING ARENA' : 'JOINING ARENA',
+        subtitle: 'Connecting to room and negotiating P2P session...',
+        roomCode,
+        onCancel: () => {
+          if (activeGuest) {
+            try { activeGuest.disconnect(); } catch {}
+          }
+          setConnectingState(null);
+          setGameState('menu');
+        },
+      });
+
       try {
         const partyHostAddress = getActivePartyHost();
         const guest = new PartyGuest();
+        activeGuest = guest;
 
         guest.onPlayerJoined = (name) => {
           addNotification('join', 'entered the arena!', name);
@@ -523,9 +545,11 @@ export const GameView: React.FC = () => {
 
         engineRef.current.startOnlineSession(guest as any, isSpectating);
         setGameState(isSpectating ? 'spectating' : 'playing');
+        setConnectingState(null);
         addNotification('info', `Connected to ${displayRoomId}`);
       } catch (err) {
         console.error('Failed to connect to room:', err);
+        setConnectingState(null);
         alert(`Could not connect to Room "${roomCode}". Please check your internet connection.`);
         setGameState('menu');
       }
@@ -544,9 +568,24 @@ export const GameView: React.FC = () => {
       if (!engineRef.current) return;
       setShowMatchSetup(false);
 
+      let activeHost: PartyHost | null = null;
+      setConnectingState({
+        title: 'HOSTING ARENA',
+        subtitle: 'Establishing edge room & preparing host simulation...',
+        roomCode,
+        onCancel: () => {
+          if (activeHost) {
+            try { activeHost.disconnect(); } catch {}
+          }
+          setConnectingState(null);
+          setGameState('menu');
+        },
+      });
+
       try {
         const partyHostAddress = getActivePartyHost();
         const host = new PartyHost(roomCode);
+        activeHost = host;
 
         await host.connect(
           partyHostAddress,
@@ -562,6 +601,7 @@ export const GameView: React.FC = () => {
         setGameState('playing');
         engineRef.current.start(settings.playerName, settings.selectedSkinId, config);
         engineRef.current.attachPartyHost(host);
+        setConnectingState(null);
 
         const displayId = mode === 'private' ? `Private [${roomCode}]` : roomName;
         setOnlineServerInfo({ roomId: displayId, ping: host.ping });
@@ -572,7 +612,8 @@ export const GameView: React.FC = () => {
         addNotification('info', `Arena hosted on Edge (${mode === 'private' ? `Code: ${roomCode}` : 'Public'}).`);
       } catch (err) {
         console.error('Failed to create edge room:', err);
-        alert('Could not launch online arena. Please ensure PartyKit is running.');
+        setConnectingState(null);
+        alert('Could not launch online arena. Please ensure internet is connected.');
         setGameState('menu');
       }
     },
@@ -867,6 +908,16 @@ export const GameView: React.FC = () => {
           settings={settings}
           onUpdateSettings={handleUpdateSettings}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* Professional Match Connecting / Hosting Overlay */}
+      {connectingState && (
+        <MatchConnectingOverlay
+          title={connectingState.title}
+          subtitle={connectingState.subtitle}
+          roomCode={connectingState.roomCode}
+          onCancel={connectingState.onCancel}
         />
       )}
 
