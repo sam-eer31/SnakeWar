@@ -20,7 +20,7 @@ export const DEFAULT_PARTY_HOST =
 
 export function getPartyWsUrl(host: string, room: string): string {
   const cleanHost = host.replace(/^https?:\/\//, '').replace(/^wss?:\/\//, '').replace(/\/+$/, '');
-  const isSecure = host.startsWith('https://') || host.startsWith('wss://') || host.includes('workers.dev') || host.includes('partykit.dev');
+  const isSecure = host.startsWith('https://') || host.startsWith('wss://') || host.includes('workers.dev') || host.includes('partykit.dev') || host.includes('onrender.com');
   const protocol = isSecure ? 'wss://' : 'ws://';
   return `${protocol}${cleanHost}/parties/snake-room/${encodeURIComponent(room)}`;
 }
@@ -30,19 +30,6 @@ export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:openrelay.metered.ca:80' },
-  // OpenRelay by Metered: Free global public TURN server with TCP/UDP & TLS on port 80 & 443
-  {
-    urls: [
-      'turn:openrelay.metered.ca:80',
-      'turn:openrelay.metered.ca:443',
-      'turn:openrelay.metered.ca:443?transport=tcp',
-      'turns:openrelay.metered.ca:443',
-      'turns:openrelay.metered.ca:443?transport=tcp',
-    ],
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
 ];
 
 /**
@@ -222,7 +209,6 @@ export class PartyHost {
       const pc = new RTCPeerConnection({
         iceServers: DEFAULT_ICE_SERVERS,
         iceCandidatePoolSize: 2,
-        iceTransportPolicy: 'relay',
       });
       this.peerConnections.set(guestConnId, pc);
 
@@ -535,7 +521,6 @@ export class PartyGuest {
           const pc = new RTCPeerConnection({
             iceServers: DEFAULT_ICE_SERVERS,
             iceCandidatePoolSize: 2,
-            iceTransportPolicy: 'relay',
           });
           this.pc = pc;
 

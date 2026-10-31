@@ -830,12 +830,267 @@ setInterval(() => {
 }, TICK_MS);
 
 // =============================================================================
-// HTTP HEALTHCHECK SERVER (RENDER COMPLIANT)
+// SNAKEROOM BROKER (High-Speed Room Broker for PartyHost and PartyGuest)
+// =============================================================================
+const publicLobbyRooms = new Map(); // roomId -> RoomMetadata
+const brokerRooms = new Map(); // roomName -> { name, clients: Map(connId -> ws), hostConnId, hostWs, metadata }
+
+function cleanExpiredLobbyRooms() {
+  const now = Date.now();
+  for (const [id, room] of publicLobbyRooms.entries()) {
+    if (now - (room.updatedAt || 0) > 300000) {
+      publicLobbyRooms.delete(id);
+    }
+  }
+}
+
+function broadcastLobbyUpdate() {
+  cleanExpiredLobbyRooms();
+  const packet = JSON.stringify({
+    type: 'community_rooms',
+    rooms: Array.from(publicLobbyRooms.values()),
+  });
+  const lobby = brokerRooms.get('lobby');
+  if (lobby) {
+    for (const clientWs of lobby.clients.values()) {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(packet);
+      }
+    }
+  }
+}
+
+function handleBrokerConnection(ws, pathname) {
+  const roomName = decodeURIComponent(
+    pathname.replace(/^\/parties\/snake-room\//, '').replace(/^\/party\//, '')
+  );
+  const connId = `conn_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 6)}`;
+  ws.connId = connId;
+
+  if (roomName === 'lobby') {
+    let lobby = brokerRooms.get('lobby');
+    if (!lobby) {
+      lobby = { name: 'lobby', clients: new Map(), hostConnId: null, hostWs: null, metadata: null };
+      brokerRooms.set('lobby', lobby);
+    }
+    lobby.clients.set(connId, ws);
+
+    cleanExpiredLobbyRooms();
+    ws.send(JSON.stringify({
+      type: 'community_rooms',
+      rooms: Array.from(publicLobbyRooms.values()),
+    }));
+
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (data.type === 'get_rooms') {
+          cleanExpiredLobbyRooms();
+          ws.send(JSON.stringify({
+            type: 'community_rooms',
+            rooms: Array.from(publicLobbyRooms.values()),
+          }));
+        } else if (data.type === 'register_public_room' && data.room) {
+          publicLobbyRooms.set(data.room.id, {
+            ...data.room,
+            updatedAt: Date.now(),
+          });
+          broadcastLobbyUpdate();
+        } else if (data.type === 'unregister_public_room' && data.roomId) {
+          publicLobbyRooms.delete(data.roomId);
+          broadcastLobbyUpdate();
+        }
+      } catch (err) {
+        console.error('[Broker Lobby] Message parse error:', err);
+      }
+    });
+
+    ws.on('close', () => {
+      lobby.clients.delete(connId);
+      if (lobby.clients.size === 0) {
+        brokerRooms.delete('lobby');
+      }
+    });
+    return;
+  }
+
+  // Match room
+  let room = brokerRooms.get(roomName);
+  if (!room) {
+    room = { name: roomName, clients: new Map(), hostConnId: null, hostWs: null, metadata: null };
+    brokerRooms.set(roomName, room);
+  }
+  room.clients.set(connId, ws);
+
+  ws.send(JSON.stringify({
+    type: 'connected_to_room',
+    roomId: roomName,
+    hasHost: room.hostConnId !== null,
+  }));
+
+  ws.on('message', (message) => {
+    try {
+      const raw = message.toString();
+      const data = JSON.parse(raw);
+
+      // WebRTC Signaling
+      if (data.type === 'webrtc_signal' && data.targetConnId) {
+        const target = room.clients.get(data.targetConnId);
+        if (target && target.readyState === WebSocket.OPEN) {
+          target.send(JSON.stringify({
+            type: 'webrtc_signal',
+            fromConnId: connId,
+            signal: data.signal,
+          }));
+        }
+        return;
+      }
+
+      // Host claims authority
+      if (data.type === 'claim_host') {
+        room.hostConnId = connId;
+        room.hostWs = ws;
+        room.metadata = data.metadata || null;
+
+        if (data.isPublic && room.metadata) {
+          publicLobbyRooms.set(room.metadata.id, {
+            ...room.metadata,
+            updatedAt: Date.now(),
+          });
+          broadcastLobbyUpdate();
+        }
+
+        ws.send(JSON.stringify({ type: 'host_claimed', roomId: roomName }));
+        return;
+      }
+
+      // Guest joins
+      if (data.type === 'guest_join') {
+        if (room.hostWs && room.hostWs.readyState === WebSocket.OPEN) {
+          room.hostWs.send(JSON.stringify({
+            type: 'guest_joined',
+            guestConnId: connId,
+            name: data.name,
+            skinId: data.skinId,
+            isSpectator: !!data.isSpectator,
+          }));
+        } else {
+          ws.send(JSON.stringify({
+            type: 'error',
+            code: 'NO_HOST',
+            message: 'Waiting for room host to connect...',
+          }));
+        }
+        return;
+      }
+
+      // Host relaying packets to guests
+      if (connId === room.hostConnId) {
+        if ((data.type === 'init_response' || data.type === 'game_over_response') && data.targetConnId) {
+          const guest = room.clients.get(data.targetConnId);
+          if (guest && guest.readyState === WebSocket.OPEN) {
+            guest.send(JSON.stringify(data.packet));
+          }
+        } else if (data.type === 'peer_pong' && data.guestConnId) {
+          const guest = room.clients.get(data.guestConnId);
+          if (guest && guest.readyState === WebSocket.OPEN) {
+            guest.send(JSON.stringify({ type: 'pong', t: data.t }));
+          }
+        } else if (data.type === 'tick') {
+          for (const [cId, clientWs] of room.clients) {
+            if (cId !== connId && clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(raw);
+            }
+          }
+        } else if (data.type === 'player_joined' || data.type === 'player_left') {
+          for (const [cId, clientWs] of room.clients) {
+            if (cId !== connId && clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(raw);
+            }
+          }
+        }
+        return;
+      }
+
+      // Guest sending input to host
+      if (data.type === 'input') {
+        if (room.hostWs && room.hostWs.readyState === WebSocket.OPEN) {
+          room.hostWs.send(JSON.stringify({
+            type: 'guest_input',
+            guestConnId: connId,
+            angle: data.angle,
+            isBoosting: data.isBoosting,
+          }));
+        }
+        return;
+      }
+
+      // Ping
+      if (data.type === 'ping') {
+        if (room.hostWs && connId !== room.hostConnId && room.hostWs.readyState === WebSocket.OPEN) {
+          room.hostWs.send(JSON.stringify({ type: 'peer_ping', guestConnId: connId, t: data.t }));
+        } else {
+          ws.send(JSON.stringify({ type: 'pong', t: data.t }));
+        }
+        return;
+      }
+
+      // Respawn
+      if (data.type === 'respawn') {
+        if (room.hostWs && room.hostWs.readyState === WebSocket.OPEN) {
+          room.hostWs.send(JSON.stringify({
+            type: 'guest_joined',
+            guestConnId: connId,
+            name: data.name,
+            skinId: data.skinId,
+            isSpectator: false,
+          }));
+        }
+        return;
+      }
+    } catch (err) {
+      console.error(`[Broker Room ${roomName}] Message error:`, err);
+    }
+  });
+
+  ws.on('close', () => {
+    room.clients.delete(connId);
+    if (connId === room.hostConnId) {
+      room.hostConnId = null;
+      room.hostWs = null;
+      for (const clientWs of room.clients.values()) {
+        if (clientWs.readyState === WebSocket.OPEN) {
+          clientWs.send(JSON.stringify({
+            type: 'room_closed',
+            message: 'The match host has left.',
+          }));
+        }
+      }
+      if (publicLobbyRooms.has(roomName)) {
+        publicLobbyRooms.delete(roomName);
+        broadcastLobbyUpdate();
+      }
+    } else {
+      if (room.hostWs && room.hostWs.readyState === WebSocket.OPEN) {
+        room.hostWs.send(JSON.stringify({
+          type: 'guest_left',
+          guestConnId: connId,
+        }));
+      }
+    }
+    if (room.clients.size === 0) {
+      brokerRooms.delete(roomName);
+    }
+  });
+}
+
+// =============================================================================
+// HTTP HEALTHCHECK & API SERVER (RENDER COMPLIANT)
 // =============================================================================
 const server = http.createServer((req, res) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -844,14 +1099,24 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.url === '/health' || req.url === '/api/status') {
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const pathname = parsedUrl.pathname;
+
+  if (pathname === '/health' || pathname === '/api/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(getStatusPayload(), null, 2));
     return;
   }
 
+  if (pathname.includes('/lobby/api/rooms') || pathname === '/api/rooms') {
+    cleanExpiredLobbyRooms();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(Array.from(publicLobbyRooms.values())));
+    return;
+  }
+
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('SnakeWar Dedicated Game Server is running 24/7 on WebSockets.\nConnect via ws://localhost:' + PORT);
+  res.end('SnakeWar Dedicated Game Server & Broker is running 24/7 on WebSockets.\nConnect via ws://localhost:' + PORT);
 });
 
 // =============================================================================
@@ -859,7 +1124,35 @@ const server = http.createServer((req, res) => {
 // =============================================================================
 const wss = new WebSocketServer({ server });
 
+// Heartbeat to prevent reverse proxy / Render idle drops
+const heartbeatInterval = setInterval(() => {
+  for (const client of wss.clients) {
+    if (client.isAlive === false) {
+      client.terminate();
+      continue;
+    }
+    client.isAlive = false;
+    client.ping();
+  }
+}, 25000);
+
+wss.on('close', () => {
+  clearInterval(heartbeatInterval);
+});
+
 wss.on('connection', (ws, req) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const pathname = parsedUrl.pathname;
+
+  // Route PartyKit Edge-style Broker connections
+  if (pathname.startsWith('/parties/snake-room/') || pathname.startsWith('/party/')) {
+    handleBrokerConnection(ws, pathname);
+    return;
+  }
+
   let currentRoom = null;
 
   ws.on('message', (message) => {
