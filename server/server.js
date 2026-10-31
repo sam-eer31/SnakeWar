@@ -61,12 +61,18 @@ function distSqToSegment(px, py, ax, ay, bx, by) {
 // ARENA ROOM CLASS
 // =============================================================================
 class ArenaRoom {
-  constructor(id, name, difficulty, botCount) {
+  constructor(id, name, difficulty = 'medium', botCount = 38, options = {}) {
     this.id = id;
     this.name = name;
     this.difficulty = difficulty;
     this.botCount = botCount;
-    this.arenaRadius = ARENA_RADIUS;
+    this.arenaRadius = options.arenaRadius || ARENA_RADIUS;
+    this.mode = options.mode || 'official'; // 'official' | 'public' | 'private'
+    this.roomCode = options.roomCode || null;
+    this.hostName = options.hostName || null;
+    this.isDynamic = options.isDynamic || false;
+    this.emptySince = null;
+    this.isDestroyed = false;
     this.startTime = Date.now();
     this.tickCount = 0;
 
@@ -323,7 +329,40 @@ class ArenaRoom {
 
     this.snakes.set(id, snake);
     this.clients.set(ws, { snakeId: id, isSpectator: false, name: snake.name });
+
+    // Notify all existing players in arena of new human player arrival
+    this.broadcast({
+      type: 'player_joined',
+      playerName: snake.name,
+      snakeId: id,
+      isSpectator: false,
+    }, ws);
+
     return snake;
+  }
+
+  broadcast(data, excludeWs = null) {
+    if (this.isDestroyed) return;
+    const msg = typeof data === 'string' ? data : JSON.stringify(data);
+    for (const ws of this.clients.keys()) {
+      if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(msg);
+        } catch {}
+      }
+    }
+  }
+
+  destroy() {
+    this.isDestroyed = true;
+    for (const ws of this.clients.keys()) {
+      try {
+        ws.send(JSON.stringify({ type: 'room_closed', message: 'Arena has been closed.' }));
+      } catch {}
+    }
+    this.clients.clear();
+    this.snakes.clear();
+    this.food.clear();
   }
 
   killSnake(victim, killer) {
@@ -628,17 +667,166 @@ class ArenaRoom {
 }
 
 // =============================================================================
-// INITIALIZE 2 OFFICIAL PUBLIC ARENAS (MASSIVE 9,000px WORLDS)
+// DYNAMIC MULTIPLAYER ROOM & ARENA REGISTRY
 // =============================================================================
-const rooms = {
-  medium: new ArenaRoom('medium', 'Emerald Glade [Medium]', 'medium', 38),
-  hard: new ArenaRoom('hard', 'Apex Colosseum [Hard]', 'hard', 45),
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    if (i === 3) code += '-';
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// 2 Permanent Dedicated Official Arenas (Massive 9,000px Worlds)
+const dedicatedRooms = {
+  medium: new ArenaRoom('medium', 'Emerald Glade [Medium]', 'medium', 38, { mode: 'official' }),
+  hard: new ArenaRoom('hard', 'Apex Colosseum [Hard]', 'hard', 45, { mode: 'official' }),
 };
 
-// 30 Hz Game Loop for all arenas
+// Dynamic player-hosted custom rooms (Map: roomId -> ArenaRoom)
+const customRooms = new Map();
+
+function getRoomById(id) {
+  if (dedicatedRooms[id]) return dedicatedRooms[id];
+  return customRooms.get(id) || null;
+}
+
+function getRoomByCode(code) {
+  if (!code) return null;
+  const cleanCode = code.trim().toUpperCase();
+  for (const room of customRooms.values()) {
+    if (room.roomCode && room.roomCode.toUpperCase() === cleanCode && !room.isDestroyed) {
+      return room;
+    }
+  }
+  return null;
+}
+
+function getAllRooms() {
+  return [...Object.values(dedicatedRooms), ...customRooms.values()];
+}
+
+// Helper: send full initial state snapshot to connected client
+function sendInitSnapshot(ws, room, playerSnake) {
+  const fullFood = Array.from(room.food.values()).map((f) => ({
+    id: f.id,
+    x: f.x,
+    y: f.y,
+    v: f.v,
+    t: f.t,
+    c: f.c,
+  }));
+
+  ws.send(JSON.stringify({
+    type: 'init',
+    roomId: room.id,
+    roomCode: room.roomCode || null,
+    arenaRadius: room.arenaRadius,
+    myId: playerSnake ? playerSnake.id : null,
+    food: fullFood,
+    snakes: Array.from(room.snakes.values()).map((s) => ({
+      id: s.id,
+      name: s.name,
+      skinId: s.skinId,
+      tier: s.tier,
+      isBot: s.isBot,
+      x: Math.round(s.x),
+      y: Math.round(s.y),
+      angle: Number(s.angle.toFixed(2)),
+      radius: Math.round(s.radius),
+      mass: Math.round(s.mass),
+      score: s.score,
+      kills: s.kills || 0,
+      isBoosting: s.isBoosting,
+      spawnProtection: s.spawnProtection > 0,
+      aiState: s.brain ? s.brain.state : null,
+      archetype: s.brain ? s.brain.personality.archetype : null,
+      segs: s.segments.filter((_, idx) => idx % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y)]),
+    })),
+  }));
+}
+
+function getStatusPayload() {
+  const communityList = [];
+  for (const room of customRooms.values()) {
+    if (room.mode === 'public' && !room.isDestroyed) {
+      communityList.push({
+        id: room.id,
+        name: room.name,
+        hostName: room.hostName || 'Host',
+        difficulty: room.difficulty,
+        uptime: room.getUptimeSeconds(),
+        snakes: room.snakes.size,
+        players: Array.from(room.clients.values()).filter((c) => !c.isSpectator).length,
+        spectators: Array.from(room.clients.values()).filter((c) => c.isSpectator).length,
+        bots: room.botCount,
+        mode: 'public',
+      });
+    }
+  }
+
+  return {
+    status: 'ok',
+    service: 'snake.io-dedicated-server',
+    timestamp: Date.now(),
+    arenas: {
+      medium: {
+        id: 'medium',
+        name: dedicatedRooms.medium.name,
+        difficulty: 'medium',
+        uptime: dedicatedRooms.medium.getUptimeSeconds(),
+        snakes: dedicatedRooms.medium.snakes.size,
+        players: Array.from(dedicatedRooms.medium.clients.values()).filter((c) => !c.isSpectator).length,
+        spectators: Array.from(dedicatedRooms.medium.clients.values()).filter((c) => c.isSpectator).length,
+      },
+      hard: {
+        id: 'hard',
+        name: dedicatedRooms.hard.name,
+        difficulty: 'hard',
+        uptime: dedicatedRooms.hard.getUptimeSeconds(),
+        snakes: dedicatedRooms.hard.snakes.size,
+        players: Array.from(dedicatedRooms.hard.clients.values()).filter((c) => !c.isSpectator).length,
+        spectators: Array.from(dedicatedRooms.hard.clients.values()).filter((c) => c.isSpectator).length,
+      },
+    },
+    community: communityList,
+  };
+}
+
+// 30 Hz Game Loop for all active arenas (with dynamic garbage collection)
 setInterval(() => {
-  rooms.medium.tick(1 / TICK_RATE);
-  rooms.hard.tick(1 / TICK_RATE);
+  const now = Date.now();
+  const roomsToClean = [];
+
+  for (const room of getAllRooms()) {
+    if (room.isDestroyed) continue;
+    room.tick(1 / TICK_RATE);
+
+    // Dynamic custom rooms: auto-clean after 60s when no human players are present
+    if (room.isDynamic) {
+      const humanCount = room.clients.size;
+      if (humanCount === 0) {
+        if (!room.emptySince) {
+          room.emptySince = now;
+        } else if (now - room.emptySince > 60000) {
+          roomsToClean.push(room.id);
+        }
+      } else {
+        room.emptySince = null;
+      }
+    }
+  }
+
+  for (const roomId of roomsToClean) {
+    const room = customRooms.get(roomId);
+    if (room) {
+      console.log(`[Room Manager] Destroying inactive custom room: "${room.name}" (${room.id})`);
+      room.destroy();
+      customRooms.delete(roomId);
+    }
+  }
 }, TICK_MS);
 
 // =============================================================================
@@ -657,34 +845,8 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/health' || req.url === '/api/status') {
-    const statusData = {
-      status: 'ok',
-      service: 'snake.io-dedicated-server',
-      timestamp: Date.now(),
-      arenas: {
-        medium: {
-          id: 'medium',
-          name: rooms.medium.name,
-          difficulty: 'medium',
-          uptime: rooms.medium.getUptimeSeconds(),
-          snakes: rooms.medium.snakes.size,
-          players: Array.from(rooms.medium.clients.values()).filter((c) => !c.isSpectator).length,
-          spectators: Array.from(rooms.medium.clients.values()).filter((c) => c.isSpectator).length,
-        },
-        hard: {
-          id: 'hard',
-          name: rooms.hard.name,
-          difficulty: 'hard',
-          uptime: rooms.hard.getUptimeSeconds(),
-          snakes: rooms.hard.snakes.size,
-          players: Array.from(rooms.hard.clients.values()).filter((c) => !c.isSpectator).length,
-          spectators: Array.from(rooms.hard.clients.values()).filter((c) => c.isSpectator).length,
-        },
-      },
-    };
-
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(statusData, null, 2));
+    res.end(JSON.stringify(getStatusPayload(), null, 2));
     return;
   }
 
@@ -709,28 +871,91 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
-      if (data.type === 'status') {
+      if (data.type === 'status' || data.type === 'list_rooms') {
         ws.send(JSON.stringify({
           type: 'status',
-          arenas: {
-            medium: {
-              name: rooms.medium.name,
-              uptime: rooms.medium.getUptimeSeconds(),
-              snakes: rooms.medium.snakes.size,
-            },
-            hard: {
-              name: rooms.hard.name,
-              uptime: rooms.hard.getUptimeSeconds(),
-              snakes: rooms.hard.snakes.size,
-            },
-          },
+          ...getStatusPayload(),
         }));
         return;
       }
 
+      if (data.type === 'check_room_code') {
+        const room = getRoomByCode(data.code);
+        ws.send(JSON.stringify({
+          type: 'check_room_code_result',
+          code: data.code,
+          valid: !!room,
+          room: room ? {
+            id: room.id,
+            name: room.name,
+            hostName: room.hostName || 'Host',
+            difficulty: room.difficulty,
+            players: Array.from(room.clients.values()).filter((c) => !c.isSpectator).length,
+            bots: room.botCount,
+          } : null,
+        }));
+        return;
+      }
+
+      if (data.type === 'create_room') {
+        const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const mode = data.mode === 'private' ? 'private' : 'public';
+        const roomCode = data.roomCode || generateRoomCode();
+        const hostName = data.hostName || data.name || 'Host';
+        const name = data.name || `${hostName}'s Arena`;
+        const difficulty = data.settings?.difficulty || 'medium';
+        const botCount = typeof data.settings?.botCount === 'number' ? data.settings.botCount : 30;
+
+        const newRoom = new ArenaRoom(roomId, name, difficulty, botCount, {
+          mode,
+          roomCode,
+          hostName,
+          isDynamic: true,
+        });
+
+        customRooms.set(roomId, newRoom);
+        currentRoom = newRoom;
+        console.log(`[Room Manager] Created ${mode} room "${name}" (ID: ${roomId}, Code: ${roomCode})`);
+
+        ws.send(JSON.stringify({
+          type: 'room_created',
+          roomId: newRoom.id,
+          roomCode: newRoom.roomCode,
+          mode: newRoom.mode,
+        }));
+
+        let playerSnake = null;
+        if (!data.isSpectator) {
+          playerSnake = newRoom.spawnPlayer(ws, hostName, data.skinId);
+        } else {
+          newRoom.clients.set(ws, { snakeId: null, isSpectator: true, name: hostName });
+        }
+
+        sendInitSnapshot(ws, newRoom, playerSnake);
+        return;
+      }
+
       if (data.type === 'join') {
-        const roomId = data.roomId || 'medium';
-        const room = rooms[roomId] || rooms.medium;
+        let room = null;
+        if (data.roomCode) {
+          room = getRoomByCode(data.roomCode);
+          if (!room) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              code: 'ROOM_NOT_FOUND',
+              message: `No active arena found with code "${data.roomCode.toUpperCase()}".`,
+            }));
+            return;
+          }
+        } else if (data.roomId) {
+          room = getRoomById(data.roomId);
+          if (!room) {
+            room = dedicatedRooms.medium;
+          }
+        } else {
+          room = dedicatedRooms.medium;
+        }
+
         currentRoom = room;
 
         let playerSnake = null;
@@ -738,44 +963,15 @@ wss.on('connection', (ws, req) => {
           playerSnake = room.spawnPlayer(ws, data.name, data.skinId);
         } else {
           room.clients.set(ws, { snakeId: null, isSpectator: true, name: data.name || 'Spectator' });
+          room.broadcast({
+            type: 'player_joined',
+            playerName: data.name || 'Spectator',
+            snakeId: null,
+            isSpectator: true,
+          }, ws);
         }
 
-        // Send full initial state snapshot
-        const fullFood = Array.from(room.food.values()).map((f) => ({
-          id: f.id,
-          x: f.x,
-          y: f.y,
-          v: f.v,
-          t: f.t,
-          c: f.c,
-        }));
-
-        ws.send(JSON.stringify({
-          type: 'init',
-          roomId: room.id,
-          arenaRadius: room.arenaRadius,
-          myId: playerSnake ? playerSnake.id : null,
-          food: fullFood,
-          snakes: Array.from(room.snakes.values()).map((s) => ({
-            id: s.id,
-            name: s.name,
-            skinId: s.skinId,
-            tier: s.tier,
-            isBot: s.isBot,
-            x: Math.round(s.x),
-            y: Math.round(s.y),
-            angle: Number(s.angle.toFixed(2)),
-            radius: Math.round(s.radius),
-            mass: Math.round(s.mass),
-            score: s.score,
-            kills: s.kills || 0,
-            isBoosting: s.isBoosting,
-            spawnProtection: s.spawnProtection > 0,
-            aiState: s.brain ? s.brain.state : null,
-            archetype: s.brain ? s.brain.personality.archetype : null,
-            segs: s.segments.filter((_, idx) => idx % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y)]),
-          })),
-        }));
+        sendInitSnapshot(ws, room, playerSnake);
         return;
       }
 
@@ -798,11 +994,17 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     if (currentRoom) {
       const clientInfo = currentRoom.clients.get(ws);
-      if (clientInfo && clientInfo.snakeId) {
-        const snake = currentRoom.snakes.get(clientInfo.snakeId);
-        if (snake) {
-          currentRoom.killSnake(snake, null);
+      if (clientInfo) {
+        if (clientInfo.snakeId) {
+          const snake = currentRoom.snakes.get(clientInfo.snakeId);
+          if (snake) {
+            currentRoom.killSnake(snake, null);
+          }
         }
+        currentRoom.broadcast({
+          type: 'player_left',
+          playerName: clientInfo.name,
+        });
       }
       currentRoom.clients.delete(ws);
     }
@@ -816,13 +1018,14 @@ server.listen(PORT, () => {
   console.log(`HTTP Healthcheck: http://localhost:${PORT}/health`);
   console.log(`WebSocket Server: ws://localhost:${PORT}`);
   console.log(`Arenas Online:`);
-  console.log(` - 🟢 [medium] ${rooms.medium.name} (${rooms.medium.botCount} bots)`);
-  console.log(` - 🔴 [hard]   ${rooms.hard.name} (${rooms.hard.botCount} bots)`);
+  console.log(` - 🟢 [medium] ${dedicatedRooms.medium.name} (${dedicatedRooms.medium.botCount} bots)`);
+  console.log(` - 🔴 [hard]   ${dedicatedRooms.hard.name} (${dedicatedRooms.hard.botCount} bots)`);
   console.log(`=======================================================`);
 });
 
 module.exports = {
-  rooms,
+  rooms: dedicatedRooms,
+  customRooms,
   server,
   ArenaRoom,
 };

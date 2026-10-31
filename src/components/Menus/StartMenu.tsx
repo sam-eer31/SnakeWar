@@ -235,28 +235,28 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
         {/* Action Buttons: Stacked on mobile portrait, side-by-side on PC */}
         <div className="w-full max-w-md flex flex-col sm:flex-row gap-3 sm:gap-4 mt-1">
-          {/* PUBLIC Button */}
+          {/* ARENA BROWSER Button */}
           <button
             onClick={onOpenPublicArenas}
-            className="flex-1 h-13 sm:h-14 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-game font-bold text-sm uppercase tracking-wider px-5 flex items-center justify-between active:scale-[0.97] transition-all duration-150 cursor-pointer group"
+            className="flex-1 h-13 sm:h-14 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-game font-bold text-xs sm:text-sm uppercase tracking-wider px-4 sm:px-5 flex items-center justify-between active:scale-[0.97] transition-all duration-150 cursor-pointer group"
           >
-            <div className="flex items-center gap-3">
-              <Globe className="w-5 h-5 text-emerald-100" />
-              <span>PUBLIC</span>
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <Globe className="w-5 h-5 text-emerald-100 shrink-0" />
+              <span>ARENA BROWSER</span>
             </div>
-            <ChevronRight className="w-5 h-5 text-emerald-200 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-5 h-5 text-emerald-200 group-hover:translate-x-0.5 transition-transform shrink-0" />
           </button>
 
-          {/* CUSTOM Button */}
+          {/* HOST MATCH Button */}
           <button
             onClick={onOpenMatchSetup}
-            className="flex-1 h-13 sm:h-14 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-game font-bold text-sm uppercase tracking-wider px-5 flex items-center justify-between active:scale-[0.97] transition-all duration-150 cursor-pointer group"
+            className="flex-1 h-13 sm:h-14 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-game font-bold text-xs sm:text-sm uppercase tracking-wider px-4 sm:px-5 flex items-center justify-between active:scale-[0.97] transition-all duration-150 cursor-pointer group"
           >
-            <div className="flex items-center gap-3">
-              <Users className="w-5 h-5 text-blue-100" />
-              <span>CUSTOM</span>
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <Users className="w-5 h-5 text-blue-100 shrink-0" />
+              <span>HOST MATCH</span>
             </div>
-            <ChevronRight className="w-5 h-5 text-blue-200 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-5 h-5 text-blue-200 group-hover:translate-x-0.5 transition-transform shrink-0" />
           </button>
         </div>
       </main>

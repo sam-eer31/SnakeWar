@@ -20,6 +20,7 @@ import { SettingsModal } from './Menus/SettingsModal';
 import { MatchSetupModal } from './Menus/MatchSetupModal';
 import { PublicArenasModal } from './Menus/PublicArenasModal';
 import { SnakeWarLoader } from './UI/SnakeWarLoader';
+import { ArenaNotificationFeed, ArenaNotification } from './HUD/ArenaNotificationFeed';
 import { NetworkClient } from '@/game/network/NetworkClient';
 import { Home, Settings as SettingsIcon, Globe } from 'lucide-react';
 
@@ -47,6 +48,21 @@ export const GameView: React.FC = () => {
   const [showMatchSetup, setShowMatchSetup] = useState(false);
   const [showPublicArenas, setShowPublicArenas] = useState(false);
   const [onlineServerInfo, setOnlineServerInfo] = useState<{ roomId: string; ping: number } | null>(null);
+  const [notifications, setNotifications] = useState<ArenaNotification[]>([]);
+
+  const addNotification = useCallback((type: 'join' | 'leave' | 'info', message: string, playerName?: string) => {
+    const notif: ArenaNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      message,
+      playerName,
+      timestamp: Date.now(),
+    };
+    setNotifications((prev) => [...prev.slice(-3), notif]);
+    setTimeout(() => {
+      setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
+    }, 4500);
+  }, []);
 
   // Dynamic Engine State for React HUD
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
@@ -450,36 +466,117 @@ export const GameView: React.FC = () => {
     setGameState('menu');
   }, []);
 
-  // Join or Spectate Public Dedicated Arena
+  // Join or Spectate Arena (Official or Private Code)
   const handleJoinPublicArena = useCallback(
-    async (roomId: 'medium' | 'hard', isSpectating: boolean, serverUrl: string) => {
+    async (roomId: string, isSpectating: boolean, serverUrl: string, roomCode?: string) => {
       if (!engineRef.current) return;
       setShowPublicArenas(false);
 
       try {
         const client = new NetworkClient();
-        await client.connect(
-          serverUrl,
-          roomId,
-          settings.playerName || 'Player',
-          settings.selectedSkinId || 'emerald-dragon',
-          isSpectating
-        );
 
-        setOnlineServerInfo({ roomId, ping: client.ping });
+        client.onPlayerJoined = (name, isSpec) => {
+          addNotification('join', isSpec ? 'joined as spectator' : 'entered the arena!', name);
+        };
+        client.onPlayerLeft = (name) => {
+          addNotification('leave', 'left the arena.', name);
+        };
+        client.onError = (msg) => {
+          alert(msg);
+          handleReturnToMenu();
+        };
+
+        if (roomCode) {
+          await client.joinByCode(
+            serverUrl,
+            roomCode,
+            settings.playerName || 'Player',
+            settings.selectedSkinId || 'emerald-dragon',
+            isSpectating
+          );
+        } else {
+          await client.connect(
+            serverUrl,
+            roomId || 'medium',
+            settings.playerName || 'Player',
+            settings.selectedSkinId || 'emerald-dragon',
+            isSpectating
+          );
+        }
+
+        const displayRoomId = roomCode ? `Private [${roomCode}]` : (roomId === 'hard' ? 'Apex Colosseum' : 'Emerald Glade');
+        setOnlineServerInfo({ roomId: displayRoomId, ping: client.ping });
         client.onPing = (ping) => {
-          setOnlineServerInfo({ roomId, ping });
+          setOnlineServerInfo({ roomId: displayRoomId, ping });
         };
 
         engineRef.current.startOnlineSession(client, isSpectating);
         setGameState(isSpectating ? 'spectating' : 'playing');
+        addNotification('info', `Connected to ${displayRoomId}`);
       } catch (err) {
-        console.error('Failed to connect to dedicated multiplayer server:', err);
-        alert('Could not connect to the official dedicated server. Please ensure the Render server is live.');
+        console.error('Failed to connect to multiplayer server:', err);
+        alert('Could not connect to the multiplayer arena. Please verify server status.');
         setGameState('menu');
       }
     },
-    [settings.playerName, settings.selectedSkinId]
+    [settings.playerName, settings.selectedSkinId, addNotification, handleReturnToMenu]
+  );
+
+  // Launch Player-Hosted Online Arena (Public or Private)
+  const handleLaunchOnlineRoom = useCallback(
+    async (
+      mode: 'public' | 'private',
+      roomCode: string,
+      roomName: string,
+      config: ArenaSessionConfig
+    ) => {
+      if (!engineRef.current) return;
+      setShowMatchSetup(false);
+
+      try {
+        const client = new NetworkClient();
+        const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'ws://localhost:3001';
+
+        client.onPlayerJoined = (name, isSpec) => {
+          addNotification('join', isSpec ? 'joined as spectator' : 'entered the arena!', name);
+        };
+        client.onPlayerLeft = (name) => {
+          addNotification('leave', 'left the arena.', name);
+        };
+        client.onError = (msg) => {
+          alert(msg);
+          handleReturnToMenu();
+        };
+
+        await client.createRoom(serverUrl, {
+          name: roomName,
+          mode,
+          roomCode: mode === 'private' ? roomCode : undefined,
+          hostName: settings.playerName || 'Host',
+          skinId: settings.selectedSkinId || 'emerald-dragon',
+          isSpectator: false,
+          settings: {
+            difficulty: config.botDifficulty,
+            botCount: config.botCount,
+          },
+        });
+
+        const displayId = mode === 'private' ? `Private [${roomCode}]` : roomName;
+        setOnlineServerInfo({ roomId: displayId, ping: client.ping });
+        client.onPing = (ping) => {
+          setOnlineServerInfo({ roomId: displayId, ping });
+        };
+
+        engineRef.current.startOnlineSession(client, false);
+        setGameState('playing');
+        addNotification('info', `Arena hosted (${mode === 'private' ? `Code: ${roomCode}` : 'Public Arena'}).`);
+      } catch (err) {
+        console.error('Failed to create online arena:', err);
+        alert('Could not launch online arena. Please ensure the multiplayer server is running.');
+        setGameState('menu');
+      }
+    },
+    [settings.playerName, settings.selectedSkinId, addNotification, handleReturnToMenu]
   );
 
   return (
@@ -528,6 +625,11 @@ export const GameView: React.FC = () => {
             )}
           </div>
 
+          {/* Top-Right Arena Join/Leave Notification Feed */}
+          <div className="absolute top-[185px] sm:top-[200px] right-1.5 sm:right-2.5 z-20 pointer-events-none">
+            <ArenaNotificationFeed notifications={notifications} />
+          </div>
+
           {/* Active Power-Ups Badges (under leaderboard on left) */}
           <div className="absolute top-[36.5vh] left-1.5 sm:left-2">
             <PowerUpStatus items={playerStats?.activePowerUps || []} />
@@ -573,6 +675,11 @@ export const GameView: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Top-Right Arena Join/Leave Notification Feed in Spectator */}
+          <div className="absolute top-[185px] sm:top-[200px] right-1.5 sm:right-2.5 z-20 pointer-events-none">
+            <ArenaNotificationFeed notifications={notifications} />
+          </div>
         </div>
       )}
 
@@ -617,6 +724,11 @@ export const GameView: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Top-Right Arena Join/Leave Notification Feed in Spectator */}
+          <div className="absolute top-[185px] sm:top-[200px] right-1.5 sm:right-2.5 z-20 pointer-events-none">
+            <ArenaNotificationFeed notifications={notifications} />
           </div>
 
           {/* Bottom Left: FPS counter in spectator mode */}
@@ -685,11 +797,12 @@ export const GameView: React.FC = () => {
         />
       )}
 
-      {/* Create Arena Match / Server Settings Modal */}
+      {/* Host Arena Match Modal (Offline Solo, Public Online, Private Code) */}
       {showMatchSetup && (
         <MatchSetupModal
           initialConfig={sessionConfig}
-          onLaunchMatch={(cfg) => handleStartGame(cfg)}
+          onLaunchOffline={(cfg) => handleStartGame(cfg)}
+          onLaunchOnlineRoom={handleLaunchOnlineRoom}
           onSpectateMatch={(cfg) => handleStartSpectating(cfg)}
           onClose={() => setShowMatchSetup(false)}
         />

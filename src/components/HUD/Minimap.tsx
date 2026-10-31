@@ -64,16 +64,29 @@ export const Minimap: React.FC<MinimapProps> = ({
       ctx.fill();
     }
 
-    // Bot snakes
+    // Snakes (Distinguish real human players vs AI bots)
     for (const snake of allSnakes) {
       if (snake.isDead || snake.id === 'player') continue;
       const sx = center + snake.position.x * mapScale;
       const sy = center + snake.position.y * mapScale;
 
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
-      ctx.beginPath();
-      ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
-      ctx.fill();
+      if (!snake.isBot) {
+        // Real human players: Vibrant glowing green dot on radar
+        ctx.fillStyle = '#22c55e';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(34, 197, 94, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      } else {
+        // AI bot snakes: Subtle slate gray
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // Player snake marker

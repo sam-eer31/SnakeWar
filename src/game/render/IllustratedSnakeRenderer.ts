@@ -110,8 +110,9 @@ export function drawIllustratedSnake(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
 
-  let nameColor = '#38bdf8';
-  let borderColor = 'rgba(56, 189, 248, 0.4)';
+  // Real human players: pure white name with green accent tag border
+  let nameColor = '#ffffff';
+  let borderColor = 'rgba(34, 197, 94, 0.5)';
 
   if (snake.isBot) {
     if (snake.tier === 'easy') {
@@ -127,6 +128,10 @@ export function drawIllustratedSnake(
       nameColor = '#cbd5e1';
       borderColor = 'rgba(203, 213, 225, 0.3)';
     }
+  } else if (snake.id === 'player') {
+    // Local Player tag
+    nameColor = '#ffffff';
+    borderColor = 'rgba(56, 189, 248, 0.6)';
   }
 
   const tagText = snake.name;

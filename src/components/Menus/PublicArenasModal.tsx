@@ -1,20 +1,46 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Globe, TreePine, Swords, Play, Lock, Eye, Zap, Wifi, WifiOff, Clock, Users, X } from 'lucide-react';
+import {
+  Globe,
+  TreePine,
+  Swords,
+  Play,
+  Lock,
+  Eye,
+  Wifi,
+  Clock,
+  Users,
+  X,
+  User,
+  AlertCircle,
+  KeyRound,
+} from 'lucide-react';
 
-export interface PublicArenaInfo {
-  id: 'medium' | 'hard';
+export interface DedicatedArenaInfo {
+  id: string;
   name: string;
-  difficulty: 'medium' | 'hard';
+  difficulty: 'easy' | 'medium' | 'hard';
   uptimeSeconds: number;
   snakesCount: number;
+  playersCount: number;
   isOnline: boolean;
   pingMs: number;
 }
 
+export interface CommunityArenaInfo {
+  id: string;
+  name: string;
+  hostName: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  uptimeSeconds: number;
+  snakesCount: number;
+  playersCount: number;
+  pingMs: number;
+}
+
 interface PublicArenasModalProps {
-  onJoinArena: (roomId: 'medium' | 'hard', isSpectating: boolean, serverUrl: string) => void;
+  onJoinArena: (roomId: string, isSpectating: boolean, serverUrl: string, roomCode?: string) => void;
   onClose: () => void;
 }
 
@@ -27,13 +53,19 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
   const serverUrl = DEFAULT_SERVER_URL;
   const [isChecking, setIsChecking] = useState<boolean>(true);
 
-  const [arenas, setArenas] = useState<PublicArenaInfo[]>([
+  // Private Code input state
+  const [privateCode, setPrivateCode] = useState<string>('');
+  const [codeError, setCodeError] = useState<string | null>(null);
+
+  // Dedicated 24/7 Official Arenas
+  const [dedicatedArenas, setDedicatedArenas] = useState<DedicatedArenaInfo[]>([
     {
       id: 'medium',
       name: 'Emerald Glade',
       difficulty: 'medium',
       uptimeSeconds: 0,
       snakesCount: 38,
+      playersCount: 0,
       isOnline: false,
       pingMs: 0,
     },
@@ -43,12 +75,16 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
       difficulty: 'hard',
       uptimeSeconds: 0,
       snakesCount: 45,
+      playersCount: 0,
       isOnline: false,
       pingMs: 0,
     },
   ]);
 
-  // Probe server status directly via WebSocket (immune to ad-blockers)
+  // Live Community player-hosted rooms
+  const [communityArenas, setCommunityArenas] = useState<CommunityArenaInfo[]>([]);
+
+  // Probe server status directly via WebSocket
   useEffect(() => {
     let isMounted = true;
     let activeWs: WebSocket | null = null;
@@ -80,13 +116,14 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
             const latency = Math.max(5, Math.round(performance.now() - startT));
 
             if (isMounted && data.type === 'status' && data.arenas) {
-              setArenas([
+              setDedicatedArenas([
                 {
                   id: 'medium',
                   name: data.arenas.medium.name || 'Emerald Glade',
                   difficulty: 'medium',
                   uptimeSeconds: data.arenas.medium.uptime || 0,
                   snakesCount: data.arenas.medium.snakes || 38,
+                  playersCount: data.arenas.medium.players || 0,
                   isOnline: true,
                   pingMs: latency,
                 },
@@ -96,10 +133,27 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                   difficulty: 'hard',
                   uptimeSeconds: data.arenas.hard.uptime || 0,
                   snakesCount: data.arenas.hard.snakes || 45,
+                  playersCount: data.arenas.hard.players || 0,
                   isOnline: true,
                   pingMs: latency,
                 },
               ]);
+
+              if (Array.isArray(data.community)) {
+                setCommunityArenas(
+                  data.community.map((c: any) => ({
+                    id: c.id,
+                    name: c.name,
+                    hostName: c.hostName || 'Host',
+                    difficulty: c.difficulty || 'medium',
+                    uptimeSeconds: c.uptime || 0,
+                    snakesCount: c.snakes || 30,
+                    playersCount: c.players || 0,
+                    pingMs: latency,
+                  }))
+                );
+              }
+
               setIsChecking(false);
             }
           } catch {}
@@ -126,13 +180,14 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
           const latency = Math.max(5, Math.round(performance.now() - startT));
 
           if (isMounted && data.arenas) {
-            setArenas([
+            setDedicatedArenas([
               {
                 id: 'medium',
                 name: data.arenas.medium.name || 'Emerald Glade',
                 difficulty: 'medium',
                 uptimeSeconds: data.arenas.medium.uptime || 0,
                 snakesCount: data.arenas.medium.snakes || 38,
+                playersCount: data.arenas.medium.players || 0,
                 isOnline: true,
                 pingMs: latency,
               },
@@ -142,10 +197,27 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                 difficulty: 'hard',
                 uptimeSeconds: data.arenas.hard.uptime || 0,
                 snakesCount: data.arenas.hard.snakes || 45,
+                playersCount: data.arenas.hard.players || 0,
                 isOnline: true,
                 pingMs: latency,
               },
             ]);
+
+            if (Array.isArray(data.community)) {
+              setCommunityArenas(
+                data.community.map((c: any) => ({
+                  id: c.id,
+                  name: c.name,
+                  hostName: c.hostName || 'Host',
+                  difficulty: c.difficulty || 'medium',
+                  uptimeSeconds: c.uptime || 0,
+                  snakesCount: c.snakes || 30,
+                  playersCount: c.players || 0,
+                  pingMs: latency,
+                }))
+              );
+            }
+
             setIsChecking(false);
             return;
           }
@@ -153,7 +225,7 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
       } catch {}
 
       if (isMounted) {
-        setArenas((prev) =>
+        setDedicatedArenas((prev) =>
           prev.map((a) => ({
             ...a,
             isOnline: false,
@@ -185,38 +257,87 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
     return `${mins}m ${sec % 60}s`;
   };
 
+  const handleJoinPrivateCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = privateCode.trim().toUpperCase();
+    if (!clean || clean.length < 3) {
+      setCodeError('Please enter a valid room code.');
+      return;
+    }
+    setCodeError(null);
+    onJoinArena('', false, serverUrl, clean);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-sm select-none">
       <div className="w-full max-w-2xl bg-[#111827] border border-[#1e293b] rounded-2xl p-5 sm:p-6 flex flex-col relative max-h-[92vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-[#1e293b] mb-5">
+        <div className="flex items-center justify-between pb-4 border-b border-[#1e293b] mb-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
               <Globe className="w-5 h-5 text-blue-400" />
             </div>
             <div>
               <h2 className="text-xl font-bold font-game text-white">
-                Public Arenas
+                Arena Browser
               </h2>
               <p className="text-xs text-slate-400">
-                Live 24/7 dedicated servers with persistent AI ecosystems and players
+                Join 24/7 dedicated official arenas or player-hosted custom matches.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-[#1a2235] hover:bg-[#243044] border border-[#1e293b] text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-lg bg-[#1a2235] hover:bg-[#243044] border border-[#1e293b] text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Server Connection Banner */}
+        {/* 1. Private Room Code Join Bar */}
+        <div className="p-3.5 rounded-xl bg-purple-950/25 border border-purple-800/40 mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <KeyRound className="w-4 h-4 text-purple-400" />
+            <span className="text-xs font-game font-bold text-purple-300 uppercase tracking-wider">
+              Join Private Arena With Code
+            </span>
+          </div>
+
+          <form onSubmit={handleJoinPrivateCode} className="flex items-center gap-2">
+            <input
+              type="text"
+              maxLength={12}
+              value={privateCode}
+              onChange={(e) => {
+                setPrivateCode(e.target.value.toUpperCase());
+                if (codeError) setCodeError(null);
+              }}
+              placeholder="ENTER CODE (e.g. VIP-842)..."
+              className="flex-1 h-10 px-3.5 rounded-lg bg-black/40 border border-purple-700/50 text-xs sm:text-sm font-mono font-bold tracking-widest text-purple-100 placeholder:text-purple-400/50 uppercase focus:outline-none focus:border-purple-400 transition-colors"
+            />
+            <button
+              type="submit"
+              className="h-10 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-game font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-md shadow-purple-900/30 shrink-0"
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span>Join</span>
+            </button>
+          </form>
+
+          {codeError && (
+            <div className="mt-2 text-[11px] text-red-400 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              <span>{codeError}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Server Connection Indicator */}
         <div className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-3 mb-5 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2.5">
             <span
               className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                arenas.some((a) => a.isOnline)
+                dedicatedArenas.some((a) => a.isOnline)
                   ? 'bg-emerald-400 animate-pulse'
                   : isChecking
                   ? 'bg-amber-400 animate-pulse'
@@ -224,150 +345,187 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
               }`}
             />
             <span className="text-slate-300 font-medium">
-              {arenas.some((a) => a.isOnline) ? (
+              {dedicatedArenas.some((a) => a.isOnline) ? (
                 <>
-                  Official Dedicated Arenas: <strong className="text-emerald-400">ONLINE</strong>
+                  Multiplayer Dedicated Backend: <strong className="text-emerald-400">ONLINE</strong>
                 </>
               ) : isChecking ? (
-                <>Connecting to Render Dedicated Backend...</>
+                <>Connecting to Multiplayer Backend...</>
               ) : (
                 <>
-                  Dedicated Arenas: <strong className="text-red-400">OFFLINE</strong>
+                  Multiplayer Backend: <strong className="text-red-400">OFFLINE</strong>
                 </>
               )}
             </span>
           </div>
 
-          {arenas.some((a) => a.isOnline) && (
+          {dedicatedArenas.some((a) => a.isOnline) && (
             <span className="text-[11px] font-mono font-bold text-slate-500 flex items-center gap-1.5">
               <Wifi className="w-3 h-3" />
-              {arenas[0].pingMs || arenas[1].pingMs}ms
+              {dedicatedArenas[0].pingMs || dedicatedArenas[1].pingMs}ms
             </span>
           )}
         </div>
 
-        {/* Arenas Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-          {arenas.map((arena) => {
-            const isMed = arena.id === 'medium';
-            const diffColor = isMed
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              : 'bg-red-500/10 text-red-400 border-red-500/20';
+        {/* 2. Official Dedicated Servers Section */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="text-xs font-game font-bold uppercase tracking-wider text-slate-400">
+              Official Dedicated Arenas (24/7)
+            </span>
+          </div>
 
-            return (
-              <div
-                key={arena.id}
-                className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-4 flex flex-col justify-between transition-colors hover:border-slate-600"
-              >
-                {/* Header info */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="p-2 bg-[#1a2235] rounded-lg">
-                      {isMed ? (
-                        <TreePine className="w-5 h-5 text-emerald-400" />
-                      ) : (
-                        <Swords className="w-5 h-5 text-red-400" />
-                      )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {dedicatedArenas.map((arena) => {
+              const isMed = arena.id === 'medium';
+              const diffColor = isMed
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                : 'bg-red-500/10 text-red-400 border-red-500/20';
+
+              return (
+                <div
+                  key={arena.id}
+                  className="bg-[#0d1117] border border-[#1e293b] rounded-xl p-3.5 flex flex-col justify-between transition-colors hover:border-slate-600"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="p-1.5 bg-[#1a2235] rounded-lg">
+                        {isMed ? (
+                          <TreePine className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Swords className="w-4 h-4 text-red-400" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {arena.isOnline ? (
+                          <span className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            ONLINE
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            OFFLINE
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${diffColor}`}>
+                          {arena.difficulty}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      {arena.isOnline ? (
-                        <span className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          ONLINE
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                          OFFLINE
-                        </span>
-                      )}
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${diffColor}`}>
-                        {arena.difficulty}
-                      </span>
+
+                    <h3 className="text-sm font-bold font-game text-[#f1f5f9] mb-1">
+                      {arena.name}
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-2 bg-[#111827] border border-[#1e293b] rounded-lg p-2 mb-3 text-[10px]">
+                      <div>
+                        <div className="text-[#64748b] flex items-center gap-1 mb-0.5">
+                          <Users className="w-3 h-3" />
+                          Snakes
+                        </div>
+                        <div className="font-bold text-[#f1f5f9] font-mono">
+                          {arena.isOnline ? `${arena.snakesCount} (${arena.playersCount} Players)` : '--'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[#64748b] flex items-center gap-1 mb-0.5">
+                          <Clock className="w-3 h-3" />
+                          Uptime
+                        </div>
+                        <div className="font-bold text-[#f1f5f9] font-mono">
+                          {arena.isOnline ? formatUptime(arena.uptimeSeconds) : '--'}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <h3 className="text-base font-bold font-game text-[#f1f5f9] mb-1">
-                    {arena.name}
-                  </h3>
+                  <div className="flex items-center gap-2 pt-2 border-t border-[#1e293b]">
+                    <button
+                      onClick={() => onJoinArena(arena.id, true, serverUrl)}
+                      disabled={!arena.isOnline}
+                      className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-[#1e293b] font-game font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                      title="Spectate match"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Spec</span>
+                    </button>
 
-                  <p className="text-xs text-[#94a3b8] leading-relaxed mb-4">
-                    {isMed
-                      ? 'Massive 9,000px battleground. Strict Medium & Easy bots only (0% red apex predators). Great for steady growth and hunting.'
-                      : 'Massive 9,000px Colosseum. Dominated by aggressive Red Apex grandmaster bots with lethal constrictor coils and speed cuts.'}
-                  </p>
-
-                  {/* Arena Stats */}
-                  <div className="grid grid-cols-2 gap-3 bg-[#111827] border border-[#1e293b] rounded-lg p-3 mb-4 text-[11px]">
-                    <div>
-                      <div className="text-[#64748b] text-[10px] flex items-center gap-1 mb-0.5">
-                        <Users className="w-3 h-3" />
-                        Active Snakes
-                      </div>
-                      <div className="font-bold text-[#f1f5f9] font-mono">
-                        {arena.isOnline ? `${arena.snakesCount} Serpents` : '--'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[#64748b] text-[10px] flex items-center gap-1 mb-0.5">
-                        <Clock className="w-3 h-3" />
-                        Server Uptime
-                      </div>
-                      <div className="font-bold text-[#f1f5f9] font-mono">
-                        {arena.isOnline ? formatUptime(arena.uptimeSeconds) : '--'}
-                      </div>
-                    </div>
+                    <button
+                      onClick={() => onJoinArena(arena.id, false, serverUrl)}
+                      disabled={!arena.isOnline}
+                      className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-game font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Join Arena</span>
+                    </button>
                   </div>
                 </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-2">
-                  <button
-                    disabled={!arena.isOnline}
-                    onClick={() => onJoinArena(arena.id, false, serverUrl)}
-                    className={`w-full py-2.5 rounded-lg font-bold text-sm uppercase tracking-wide flex items-center justify-center gap-2 transition-colors ${
-                      !arena.isOnline
-                        ? 'bg-[#1a2235] text-[#64748b] cursor-not-allowed'
-                        : isMed
-                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                        : 'bg-red-600 hover:bg-red-500 text-white'
-                    }`}
-                  >
-                    {arena.isOnline ? (
-                      <>
-                        <Play className="w-4 h-4" />
-                        Enter & Play
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-4 h-4" />
-                        Server Offline
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    disabled={!arena.isOnline}
-                    onClick={() => onJoinArena(arena.id, true, serverUrl)}
-                    className={`w-full py-2 rounded-lg border font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                      !arena.isOnline
-                        ? 'bg-transparent border-[#1e293b] text-[#64748b] cursor-not-allowed'
-                        : 'bg-transparent hover:bg-[#1a2235] border-[#1e293b] hover:border-slate-600 text-[#94a3b8] hover:text-white'
-                    }`}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    Spectate Live Arena
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Footer Note */}
-        <div className="text-center text-[11px] text-[#64748b] flex items-center justify-center gap-1.5">
-          <Zap className="w-3 h-3" />
-          30 Hz server-authoritative tick rate with real-time WebSocket multiplayer and persistent AI ecosystems on Render.
+        {/* 3. Community Player-Created Arenas */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="text-xs font-game font-bold uppercase tracking-wider text-slate-400">
+              Community Public Arenas ({communityArenas.length})
+            </span>
+          </div>
+
+          {communityArenas.length === 0 ? (
+            <div className="p-4 rounded-xl bg-white/[0.02] border border-[#1e293b] text-center text-xs text-slate-500 py-6">
+              No player-hosted public arenas are currently online.
+              <br />
+              <span className="text-slate-400">Host your own from the Host Match menu!</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {communityArenas.map((room) => (
+                <div
+                  key={room.id}
+                  className="p-3 rounded-xl bg-[#0d1117] border border-[#1e293b] flex items-center justify-between gap-3 hover:border-slate-600 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-game font-bold text-slate-200 truncate">
+                        {room.name}
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-950/60 border border-blue-800/40 text-blue-400">
+                        {room.difficulty}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                      <span className="flex items-center gap-1 text-slate-500">
+                        <User className="w-3 h-3" />
+                        Host: <strong className="text-slate-400">{room.hostName}</strong>
+                      </span>
+                      <span>&bull;</span>
+                      <span>{room.playersCount} Players / {room.snakesCount} Snakes</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => onJoinArena(room.id, true, serverUrl)}
+                      className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-game font-bold text-xs flex items-center gap-1 border border-[#1e293b] cursor-pointer"
+                      title="Spectate"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onJoinArena(room.id, false, serverUrl)}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-game font-bold text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Join</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
