@@ -91,13 +91,20 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
     let activeWs: WebSocket | null = null;
     let partyLobbyWs: WebSocket | null = null;
 
-    // Probe Cloudflare PartyKit Lobby for edge community rooms
+    // Probe Cloudflare PartyServer Lobby for edge community rooms
+    let lobbyPollInterval: any = null;
     const probePartyLobby = () => {
       try {
         const partyHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
         const lobbyUrl = getPartyWsUrl(partyHost, 'lobby');
         const pws = new WebSocket(lobbyUrl);
         partyLobbyWs = pws;
+
+        pws.onopen = () => {
+          if (pws.readyState === WebSocket.OPEN) {
+            pws.send(JSON.stringify({ type: 'get_rooms' }));
+          }
+        };
 
         pws.onmessage = (event) => {
           try {
@@ -118,6 +125,12 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
             }
           } catch {}
         };
+
+        lobbyPollInterval = setInterval(() => {
+          if (pws.readyState === WebSocket.OPEN) {
+            pws.send(JSON.stringify({ type: 'get_rooms' }));
+          }
+        }, 3000);
       } catch {}
     };
 
@@ -173,21 +186,6 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                 },
               ]);
 
-              if (Array.isArray(data.community)) {
-                setCommunityArenas(
-                  data.community.map((c: any) => ({
-                    id: c.id,
-                    name: c.name,
-                    hostName: c.hostName || 'Host',
-                    difficulty: c.difficulty || 'medium',
-                    uptimeSeconds: c.uptime || 0,
-                    snakesCount: c.snakes || 30,
-                    playersCount: c.players || 0,
-                    pingMs: latency,
-                  }))
-                );
-              }
-
               setIsChecking(false);
             }
           } catch {}
@@ -237,21 +235,6 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
               },
             ]);
 
-            if (Array.isArray(data.community)) {
-              setCommunityArenas(
-                data.community.map((c: any) => ({
-                  id: c.id,
-                  name: c.name,
-                  hostName: c.hostName || 'Host',
-                  difficulty: c.difficulty || 'medium',
-                  uptimeSeconds: c.uptime || 0,
-                  snakesCount: c.snakes || 30,
-                  playersCount: c.players || 0,
-                  pingMs: latency,
-                }))
-              );
-            }
-
             setIsChecking(false);
             return;
           }
@@ -275,6 +258,7 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (lobbyPollInterval) clearInterval(lobbyPollInterval);
       if (activeWs) {
         try {
           activeWs.close();

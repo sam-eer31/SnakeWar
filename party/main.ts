@@ -20,6 +20,7 @@ export interface RoomMetadata {
 
 export class SnakeRoom extends Server<Env> {
   public env: Env;
+  public ctx: any;
   private hostConnId: string | null = null;
   private metadata: RoomMetadata | null = null;
 
@@ -28,7 +29,19 @@ export class SnakeRoom extends Server<Env> {
 
   constructor(ctx: any, env: Env) {
     super(ctx, env);
+    this.ctx = ctx;
     this.env = env;
+  }
+
+  async onStart() {
+    if (this.name === 'lobby') {
+      try {
+        const stored = (await this.ctx.storage.get('public_rooms')) as [string, RoomMetadata][] | undefined;
+        if (stored) {
+          this.publicRooms = new Map(stored);
+        }
+      } catch {}
+    }
   }
 
   onConnect(conn: Connection, _ctx: ConnectionContext) {
@@ -113,7 +126,7 @@ export class SnakeRoom extends Server<Env> {
 
       // 3. Host sending snapshots or tick updates
       if (conn.id === this.hostConnId) {
-        if (data.type === 'init_response' && data.targetConnId) {
+        if ((data.type === 'init_response' || data.type === 'game_over_response') && data.targetConnId) {
           const guest = this.getConnection(data.targetConnId);
           if (guest) {
             guest.send(JSON.stringify(data.packet));
@@ -179,6 +192,9 @@ export class SnakeRoom extends Server<Env> {
         const meta = await request.json() as RoomMetadata;
         this.publicRooms.set(meta.id, { ...meta, updatedAt: Date.now() });
         this.broadcastLobbyUpdate();
+        try {
+          await this.ctx.storage.put('public_rooms', Array.from(this.publicRooms.entries()));
+        } catch {}
         return new Response(JSON.stringify({ ok: true }), {
           headers: { 'Content-Type': 'application/json' },
         });
@@ -188,6 +204,9 @@ export class SnakeRoom extends Server<Env> {
         const { roomId } = await request.json() as { roomId: string };
         this.publicRooms.delete(roomId);
         this.broadcastLobbyUpdate();
+        try {
+          await this.ctx.storage.put('public_rooms', Array.from(this.publicRooms.entries()));
+        } catch {}
         return new Response(JSON.stringify({ ok: true }), {
           headers: { 'Content-Type': 'application/json' },
         });

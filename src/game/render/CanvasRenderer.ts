@@ -269,16 +269,16 @@ export class CanvasRenderer {
     this.drawFood(foodManager, camera);
     this.drawPowerUps(powerUps, camera);
 
-    // Draw bots first (with camera viewport culling)
+    // Draw all other snakes (bots + other human players) with viewport culling
     for (const snake of allSnakes) {
-      if (snake.isBot && !snake.isDead) {
+      if (snake !== playerSnake && !snake.isDead) {
         if (this.isSnakeInView(snake, camera)) {
           this.drawSnake(snake, camera);
         }
       }
     }
 
-    // Draw player on top
+    // Draw local player on top
     if (playerSnake && !playerSnake.isDead) {
       if (this.isSnakeInView(playerSnake, camera)) {
         this.drawSnake(playerSnake, camera);

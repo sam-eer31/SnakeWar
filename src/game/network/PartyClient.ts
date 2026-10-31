@@ -156,6 +156,21 @@ export class PartyHost {
     }
   }
 
+  sendGameOverToGuest(guestConnId: string, stats: any): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({
+          type: 'game_over_response',
+          targetConnId: guestConnId,
+          packet: {
+            type: 'game_over',
+            stats,
+          },
+        })
+      );
+    }
+  }
+
   broadcastNotification(type: 'player_joined' | 'player_left', playerName: string): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(
@@ -189,6 +204,7 @@ export class PartyGuest {
 
   public onInit: ((data: ServerInitPacket) => void) | null = null;
   public onTick: ((data: ServerTickPacket) => void) | null = null;
+  public onGameOver: ((data: any) => void) | null = null;
   public onPlayerJoined: ((playerName: string) => void) | null = null;
   public onPlayerLeft: ((playerName: string) => void) | null = null;
   public onRoomClosed: ((message: string) => void) | null = null;
@@ -246,6 +262,11 @@ export class PartyGuest {
 
             if (data.type === 'tick') {
               if (this.onTick) this.onTick(data);
+              return;
+            }
+
+            if (data.type === 'game_over') {
+              if (this.onGameOver) this.onGameOver(data);
               return;
             }
 

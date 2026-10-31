@@ -89,6 +89,8 @@ export class GameEngine {
   public partyHost: PartyHost | null = null;
   private partyBroadcastTimer: number = 0;
   private tickCounter: number = 0;
+  private lastOnlineScore: number = 50;
+  private lastOnlineKills: number = 0;
 
   constructor(canvas: HTMLCanvasElement, settings: GameSettings = DEFAULT_SETTINGS) {
     this.canvas = canvas;
@@ -97,7 +99,7 @@ export class GameEngine {
     this.ctx = ctx;
     this.settings = settings;
 
-    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 1.25) : 1;
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.0) : 1;
     this.dpr = dpr;
     const cssW = typeof window !== 'undefined' ? window.innerWidth : canvas.width;
     const cssH = typeof window !== 'undefined' ? window.innerHeight : canvas.height;
@@ -192,9 +194,23 @@ export class GameEngine {
 
     partyHost.onGuestJoined = (guestId, name, skin, isSpec) => {
       if (!isSpec) {
-        const r = Math.sqrt(Math.random()) * (this.sessionConfig.arenaRadius - 500);
-        const theta = Math.random() * Math.PI * 2;
-        const guestSnake = new Snake(guestId, name, Math.cos(theta) * r, Math.sin(theta) * r, skin, false);
+        // Safe spawn in proximity of host (e.g. 650-1100 units away)
+        let spawnX = 0;
+        let spawnY = 0;
+        if (this.playerSnake && !this.playerSnake.isDead) {
+          const spawnDist = 650 + Math.random() * 450;
+          const spawnAngle = Math.random() * Math.PI * 2;
+          spawnX = Math.max(-this.sessionConfig.arenaRadius + 500, Math.min(this.sessionConfig.arenaRadius - 500, this.playerSnake.position.x + Math.cos(spawnAngle) * spawnDist));
+          spawnY = Math.max(-this.sessionConfig.arenaRadius + 500, Math.min(this.sessionConfig.arenaRadius - 500, this.playerSnake.position.y + Math.sin(spawnAngle) * spawnDist));
+        } else {
+          const r = Math.sqrt(Math.random()) * (this.sessionConfig.arenaRadius * 0.5);
+          const theta = Math.random() * Math.PI * 2;
+          spawnX = Math.cos(theta) * r;
+          spawnY = Math.sin(theta) * r;
+        }
+
+        const guestSnake = new Snake(guestId, name, spawnX, spawnY, skin, false);
+        guestSnake.spawnProtectionTimer = 3.5;
         this.allSnakes.push(guestSnake);
       }
 
@@ -219,7 +235,7 @@ export class GameEngine {
           kills: s.kills,
           isBoosting: s.isBoosting,
           spawnProtection: s.hasSpawnProtection,
-          segs: s.segments.filter((_, idx) => idx % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y)]),
+          segs: s.segments.map((p) => [Math.round(p.x), Math.round(p.y)]),
         })),
       });
 
@@ -343,8 +359,36 @@ export class GameEngine {
           this.allSnakes.push(localSnake);
         }
 
-        localSnake.position.set(s.x, s.y);
-        localSnake.angle = s.angle;
+        // Smooth server position blending & jitter suppression
+        const dx = s.x - localSnake.position.x;
+        const dy = s.y - localSnake.position.y;
+        const distSq = dx * dx + dy * dy;
+
+        if (localSnake === this.playerSnake) {
+          // Client prediction correction for local player
+          if (distSq > 150 * 150) {
+            localSnake.position.set(s.x, s.y);
+          } else if (distSq > 4) {
+            localSnake.position.x += dx * 0.3;
+            localSnake.position.y += dy * 0.3;
+          }
+        } else {
+          // Remote snake correction (gentle lerp prevents vibrating/stuttering)
+          if (distSq > 200 * 200) {
+            localSnake.position.set(s.x, s.y);
+          } else {
+            localSnake.position.x += dx * 0.45;
+            localSnake.position.y += dy * 0.45;
+          }
+        }
+
+        // Angle blending
+        let angleDiff = s.angle - localSnake.angle;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        localSnake.angle += angleDiff * 0.45;
+        localSnake.targetAngle = s.angle;
+
         localSnake.radius = s.radius;
         localSnake.mass = s.mass;
         localSnake.score = s.score;
@@ -367,7 +411,24 @@ export class GameEngine {
       this.allSnakes = this.allSnakes.filter((s) => serverSnakeIds.has(s.id));
 
       if (!isSpectator && client.mySnakeId) {
+        const hadPlayer = this.playerSnake !== null;
         this.playerSnake = this.allSnakes.find((s) => s.id === client.mySnakeId) || null;
+
+        if (this.playerSnake) {
+          this.lastOnlineScore = this.playerSnake.score;
+          this.lastOnlineKills = this.playerSnake.kills;
+        } else if (hadPlayer) {
+          // Snake was alive and disappeared from server snapshot (died!)
+          if (this.onGameOver) {
+            this.onGameOver({
+              score: this.lastOnlineScore || 50,
+              kills: this.lastOnlineKills || 0,
+              length: 15,
+              timeSurvivedSeconds: Math.floor((performance.now() - this.startTime) / 1000),
+              topRank: this.bestRankAchieved === 999 ? 1 : this.bestRankAchieved,
+            });
+          }
+        }
       }
 
       if (this.onLeaderboardUpdate && data.leaderboard) {
@@ -595,14 +656,22 @@ export class GameEngine {
 
   private update(dt: number, deltaRatio: number): void {
     if (this.isOnline) {
+      // 1. Send input & run 120 FPS client prediction for local player
       if (this.playerSnake && !this.playerSnake.isDead) {
         this.networkClient?.sendInput(this.playerSnake.targetAngle, this.playerSnake.isBoosting);
+        this.playerSnake.update(deltaRatio);
         this.camera.setTarget(this.playerSnake.position);
       } else if (this.isSpectating && !this.camera.isFreeCam) {
         const target = this.getSpectateTarget();
         if (target && !target.isDead) {
           this.camera.setTarget(target.position);
         }
+      }
+
+      // 2. Smoothly advance other snakes between ticks (eliminates vibration & stutter)
+      for (const snake of this.allSnakes) {
+        if (snake === this.playerSnake || snake.isDead) continue;
+        snake.update(deltaRatio);
       }
 
       this.foodManager.update(deltaRatio);
@@ -777,7 +846,7 @@ export class GameEngine {
             kills: s.kills,
             isBoosting: s.isBoosting,
             spawnProtection: s.hasSpawnProtection,
-            segs: s.segments.filter((_, idx) => idx % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y)]),
+            segs: s.segments.map((p) => [Math.round(p.x), Math.round(p.y)]),
           })),
           eaten: this.foodManager.getAndClearEatenFood(),
           newFood: this.foodManager.getAndClearNewFood(),
@@ -1040,6 +1109,16 @@ export class GameEngine {
           topRank: this.bestRankAchieved,
         });
       }
+    } else if (this.partyHost && !victim.isBot) {
+      // If a guest died in our hosted party match, notify their client immediately
+      const timeSurvived = Math.round((performance.now() - this.startTime) / 1000);
+      this.partyHost.sendGameOverToGuest(victim.id, {
+        score: victim.score,
+        kills: victim.kills,
+        length: victim.segments.length,
+        timeSurvivedSeconds: timeSurvived,
+        topRank: 1,
+      });
     }
   }
 
