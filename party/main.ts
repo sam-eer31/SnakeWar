@@ -100,7 +100,20 @@ export class SnakeRoom extends Server<Env> {
 
       // --- MATCH OPERATIONS (High-Speed Host-Authoritative Regional Broker) ---
 
-      // 1. Host announces authority over room
+      // 1. WebRTC Peer-to-Peer Signaling (Top Priority: Fast Direct Route for Offer/Answer/ICE)
+      if (data.type === 'webrtc_signal' && data.targetConnId) {
+        const target = this.getConnection(data.targetConnId);
+        if (target) {
+          target.send(JSON.stringify({
+            type: 'webrtc_signal',
+            fromConnId: conn.id,
+            signal: data.signal,
+          }));
+        }
+        return;
+      }
+
+      // 2. Host announces authority over room
       if (data.type === 'claim_host') {
         this.hostConnId = conn.id;
         this.metadata = data.metadata || null;

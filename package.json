@@ -8,7 +8,6 @@
     "start": "next start",
     "party": "wrangler dev party/main.ts --port 1999",
     "party:deploy": "wrangler deploy",
-    "server": "node server/server.js",
     "lint": "next lint"
   },
   "dependencies": {
