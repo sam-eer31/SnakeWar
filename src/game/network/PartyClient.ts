@@ -16,12 +16,24 @@ export interface PartyRoomInfo {
   uptimeSeconds: number;
 }
 
-export const DEFAULT_PARTY_HOST =
-  process.env.NEXT_PUBLIC_PARTYKIT_HOST || 'snakewar.sameershahidsiddiqui365.workers.dev';
+export function getActivePartyHost(): string {
+  const envHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST || '';
+  if (envHost && !envHost.includes('onrender.com') && !envHost.includes('localhost:3001')) {
+    return envHost;
+  }
+  return 'snakewar.sameershahidsiddiqui365.workers.dev';
+}
+
+export const DEFAULT_PARTY_HOST = getActivePartyHost();
 
 export function getPartyWsUrl(host: string, room: string): string {
-  const cleanHost = host.replace(/^https?:\/\//, '').replace(/^wss?:\/\//, '').replace(/\/+$/, '');
-  const isSecure = host.startsWith('https://') || host.startsWith('wss://') || host.includes('workers.dev') || host.includes('partykit.dev');
+  let activeHost = host;
+  if (!activeHost || activeHost.includes('onrender.com') || activeHost.includes('localhost:3001')) {
+    activeHost = 'snakewar.sameershahidsiddiqui365.workers.dev';
+  }
+  const cleanHost = activeHost.replace(/^https?:\/\//, '').replace(/^wss?:\/\//, '').replace(/\/+$/, '');
+  const isBrowserHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const isSecure = isBrowserHttps || activeHost.startsWith('https://') || activeHost.startsWith('wss://') || activeHost.includes('workers.dev') || activeHost.includes('partykit.dev');
   const protocol = isSecure ? 'wss://' : 'ws://';
   return `${protocol}${cleanHost}/parties/snake-room/${encodeURIComponent(room)}`;
 }

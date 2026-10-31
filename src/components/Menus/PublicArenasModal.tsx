@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { DEFAULT_PARTY_HOST, getPartyWsUrl } from '@/game/network/PartyClient';
+import { DEFAULT_PARTY_HOST, getPartyWsUrl, getActivePartyHost } from '@/game/network/PartyClient';
 import {
   Globe,
   TreePine,
@@ -95,7 +95,7 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
     let lobbyPollInterval: any = null;
     const probePartyLobby = () => {
       try {
-        const partyHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
+        const partyHost = getActivePartyHost();
         const lobbyUrl = getPartyWsUrl(partyHost, 'lobby');
         const startT = performance.now();
         const pws = new WebSocket(lobbyUrl);

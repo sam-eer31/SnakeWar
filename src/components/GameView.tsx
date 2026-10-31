@@ -22,7 +22,7 @@ import { PublicArenasModal } from './Menus/PublicArenasModal';
 import { SnakeWarLoader } from './UI/SnakeWarLoader';
 import { ArenaNotificationFeed, ArenaNotification } from './HUD/ArenaNotificationFeed';
 import { NetworkClient } from '@/game/network/NetworkClient';
-import { PartyHost, PartyGuest, DEFAULT_PARTY_HOST } from '@/game/network/PartyClient';
+import { PartyHost, PartyGuest, getActivePartyHost } from '@/game/network/PartyClient';
 import { Home, Settings as SettingsIcon, Globe } from 'lucide-react';
 
 type GameState = 'menu' | 'playing' | 'spectating' | 'gameover';
@@ -494,7 +494,7 @@ export const GameView: React.FC = () => {
 
       if (edgeRoomCode) {
         try {
-          const partyHostAddress = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
+          const partyHostAddress = getActivePartyHost();
           const guest = new PartyGuest();
 
           guest.onPlayerJoined = (name) => {
@@ -597,7 +597,7 @@ export const GameView: React.FC = () => {
       setShowMatchSetup(false);
 
       try {
-        const partyHostAddress = process.env.NEXT_PUBLIC_PARTYKIT_HOST || DEFAULT_PARTY_HOST;
+        const partyHostAddress = getActivePartyHost();
         const host = new PartyHost(roomCode);
 
         await host.connect(
