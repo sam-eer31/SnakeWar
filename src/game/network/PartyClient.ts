@@ -25,6 +25,24 @@ export function getPartyWsUrl(host: string, room: string): string {
   return `${protocol}${cleanHost}/parties/snake-room/${encodeURIComponent(room)}`;
 }
 
+export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  // OpenRelay by Metered: Free global public TURN server with TCP/UDP on port 80 & 443 to punch through Symmetric NAT & firewalls
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
+
 /**
  * PartyHost: runs in the browser of the player who hosts the match.
  * Relays local GameEngine state through Cloudflare Edge to guests.
@@ -132,15 +150,20 @@ export class PartyHost {
               const pc = this.peerConnections.get(data.fromConnId);
               if (pc) {
                 if (data.signal.type === 'answer') {
-                  pc.setRemoteDescription(new RTCSessionDescription(data.signal.sdp)).then(() => {
+                  console.log('[WebRTC Host] Received answer from guest:', data.fromConnId);
+                  const sdpInit = data.signal.sdp?.sdp ? data.signal.sdp : data.signal;
+                  pc.setRemoteDescription(new RTCSessionDescription(sdpInit)).then(() => {
+                    console.log('[WebRTC Host] Successfully set remote description (answer) for guest:', data.fromConnId);
                     const queue = this.pendingHostCandidates.get(data.fromConnId);
                     if (queue) {
                       for (const c of queue) {
-                        pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+                        pc.addIceCandidate(new RTCIceCandidate(c)).catch((e) => console.warn('[WebRTC Host] ICE candidate error:', e));
                       }
                       this.pendingHostCandidates.delete(data.fromConnId);
                     }
-                  }).catch(() => {});
+                  }).catch((err) => {
+                    console.error('[WebRTC Host] Failed to set remote description:', err);
+                  });
                 } else if (data.signal.type === 'candidate' && data.signal.candidate) {
                   if (pc.remoteDescription) {
                     pc.addIceCandidate(new RTCIceCandidate(data.signal.candidate)).catch(() => {});
@@ -195,15 +218,17 @@ export class PartyHost {
     try {
       console.log('[WebRTC Host] Initiating direct P2P offer for guest:', guestConnId);
       const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-        ],
+        iceServers: DEFAULT_ICE_SERVERS,
       });
       this.peerConnections.set(guestConnId, pc);
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('[WebRTC Host] ICE state for guest', guestConnId, ':', pc.iceConnectionState);
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log('[WebRTC Host] Connection state for guest', guestConnId, ':', pc.connectionState);
+      };
 
       const dc = pc.createDataChannel('snake_p2p', { ordered: false, maxRetransmits: 0 });
       this.dataChannels.set(guestConnId, dc);
@@ -231,10 +256,11 @@ export class PartyHost {
 
       pc.onicecandidate = (event) => {
         if (event.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
+          const candJson = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
           this.ws.send(JSON.stringify({
             type: 'webrtc_signal',
             targetConnId: guestConnId,
-            signal: { type: 'candidate', candidate: event.candidate },
+            signal: { type: 'candidate', candidate: candJson },
           }));
         }
       };
@@ -503,15 +529,17 @@ export class PartyGuest {
         console.log('[WebRTC Guest] Received offer from host:', fromConnId);
         if (!this.pc) {
           const pc = new RTCPeerConnection({
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' },
-              { urls: 'stun:stun2.l.google.com:19302' },
-              { urls: 'stun:stun3.l.google.com:19302' },
-              { urls: 'stun:stun4.l.google.com:19302' },
-            ],
+            iceServers: DEFAULT_ICE_SERVERS,
           });
           this.pc = pc;
+
+          pc.oniceconnectionstatechange = () => {
+            console.log('[WebRTC Guest] ICE state:', pc.iceConnectionState);
+          };
+
+          pc.onconnectionstatechange = () => {
+            console.log('[WebRTC Guest] Connection state:', pc.connectionState);
+          };
 
           pc.ondatachannel = (event) => {
             const dc = event.channel;
@@ -548,18 +576,20 @@ export class PartyGuest {
 
           pc.onicecandidate = (event) => {
             if (event.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
+              const candJson = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
               this.ws.send(
                 JSON.stringify({
                   type: 'webrtc_signal',
                   targetConnId: this.hostConnId,
-                  signal: { type: 'candidate', candidate: event.candidate },
+                  signal: { type: 'candidate', candidate: candJson },
                 })
               );
             }
           };
         }
 
-        await this.pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        const remoteOffer = signal.sdp?.sdp ? signal.sdp : signal;
+        await this.pc.setRemoteDescription(new RTCSessionDescription(remoteOffer));
 
         for (const cand of this.pendingCandidates) {
           await this.pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
