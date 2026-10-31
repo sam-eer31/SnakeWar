@@ -63,7 +63,7 @@ export const PowerUpStatus: React.FC<{ items: PowerUpItemProps[] }> = ({ items }
         return (
           <div
             key={item.type}
-            className="flex items-center gap-2.5 bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] rounded-xl px-3 py-1.5 min-w-[136px]"
+            className="flex items-center gap-2.5 bg-[#0a0e1a]/95 border border-[#1e293b] rounded-xl px-3 py-1.5 min-w-[136px]"
           >
             <div className="flex-shrink-0">
               {getPowerUpIcon(item.type)}

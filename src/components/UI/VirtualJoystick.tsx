@@ -68,7 +68,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onBoos
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="w-28 h-28 rounded-full bg-[#0a0e1a]/80 backdrop-blur-md border border-[#1e293b] flex items-center justify-center relative pointer-events-auto touch-none"
+        className="w-28 h-28 rounded-full bg-[#0a0e1a]/95 border border-[#1e293b] flex items-center justify-center relative pointer-events-auto touch-none"
       >
         <div
           className="w-12 h-12 rounded-full bg-blue-600/80 border border-blue-400/50 transition-transform duration-75"
@@ -89,7 +89,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onBoos
         className={`w-20 h-20 rounded-full flex flex-col items-center justify-center font-game font-bold text-xs uppercase tracking-wider transition-all pointer-events-auto active:scale-95 ${
           isBoosting
             ? 'bg-amber-600 border-2 border-amber-400 text-white'
-            : 'bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] text-amber-400'
+            : 'bg-[#0a0e1a]/95 border border-[#1e293b] text-amber-400'
         }`}
       >
         <Zap className="w-6 h-6 mb-0.5" />

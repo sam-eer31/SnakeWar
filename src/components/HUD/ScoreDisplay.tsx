@@ -12,7 +12,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ stats, highScore }) 
   if (!stats) return null;
 
   return (
-    <div className="flex items-center gap-2.5 sm:gap-3 bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] rounded-xl px-3 py-1.5 text-xs select-none pointer-events-none flex-shrink-0">
+    <div className="flex items-center gap-2.5 sm:gap-3 bg-[#0a0e1a]/95 border border-[#1e293b] rounded-xl px-3 py-1.5 text-xs select-none pointer-events-none flex-shrink-0">
       {/* Score */}
       <div className="flex items-baseline gap-1.5">
         <span className="text-[10px] font-game font-bold uppercase tracking-wider text-[#64748b]">

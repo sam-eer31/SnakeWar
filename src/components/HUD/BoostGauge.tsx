@@ -33,7 +33,7 @@ export const BoostGauge: React.FC<BoostGaugeProps> = ({ mass, isBoosting, hasTur
         )}
       </div>
 
-      <div className="w-28 sm:w-36 h-2 sm:h-2.5 bg-[#0a0e1a]/90 backdrop-blur-md rounded-full border border-[#1e293b] p-0.5 overflow-hidden">
+      <div className="w-28 sm:w-36 h-2 sm:h-2.5 bg-[#0a0e1a]/95 rounded-full border border-[#1e293b] p-0.5 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-75 ${
             hasTurbo

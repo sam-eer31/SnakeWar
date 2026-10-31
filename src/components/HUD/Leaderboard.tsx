@@ -68,7 +68,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
         height: '35.355vh',
         fontSize: 'clamp(6.5px, min(1.1vw, 2.3vh), 12px)',
       }}
-      className={`bg-[#0a0e1a]/90 backdrop-blur-md rounded-none rounded-br-lg p-1 sm:p-1.5 select-none flex flex-col justify-between overflow-hidden border-0 ${
+      className={`bg-[#0a0e1a]/95 rounded-none rounded-br-lg p-1 sm:p-1.5 select-none flex flex-col justify-between overflow-hidden border-b border-r border-[#1e293b]/60 ${
         isSpectating ? 'pointer-events-auto' : 'pointer-events-none'
       }`}
     >

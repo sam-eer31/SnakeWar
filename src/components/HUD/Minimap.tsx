@@ -97,7 +97,7 @@ export const Minimap: React.FC<MinimapProps> = ({
   }, [playerSnake, allSnakes, powerUps, arenaRadius]);
 
   return (
-    <div className="relative rounded-full p-1 bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] pointer-events-none select-none flex-shrink-0">
+    <div className="relative rounded-full p-1 bg-[#0a0e1a]/95 border border-[#1e293b] pointer-events-none select-none flex-shrink-0">
       <canvas
         ref={canvasRef}
         className="w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full block"

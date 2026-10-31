@@ -45,37 +45,37 @@ export class CanvasRenderer {
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
 
-    // Vertical lines
+    // Batched single-stroke grid lines (cuts 50+ draw calls down to 1)
+    ctx.beginPath();
     for (let x = startX; x <= endX; x += gridSize) {
       const p1 = camera.worldToScreen(x, camera.position.y - halfH);
       const p2 = camera.worldToScreen(x, camera.position.y + halfH);
-      ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
     }
-
-    // Horizontal lines
     for (let y = startY; y <= endY; y += gridSize) {
       const p1 = camera.worldToScreen(camera.position.x - halfW, y);
       const p2 = camera.worldToScreen(camera.position.x + halfW, y);
-      ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
     }
+    ctx.stroke();
 
-    // Draw Arena Circular Boundary
+    // Draw Arena Circular Boundary with hardware-accelerated neon aura (replaces CPU shadowBlur)
     const centerScreen = camera.worldToScreen(0, 0);
     const screenRadius = this.arenaRadius * camera.zoom;
 
-    ctx.lineWidth = Math.max(3, 5 * camera.zoom);
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.65)';
     if (this.settings.glowEffects) {
-      ctx.shadowBlur = 18;
-      ctx.shadowColor = '#ef4444';
+      // Wide translucent outer glow stroke (100% GPU accelerated, zero CPU blur stalls)
+      ctx.lineWidth = Math.max(8, 14 * camera.zoom);
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.16)';
+      ctx.beginPath();
+      ctx.arc(centerScreen.x, centerScreen.y, screenRadius, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
+    ctx.lineWidth = Math.max(3, 5 * camera.zoom);
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
     ctx.beginPath();
     ctx.arc(centerScreen.x, centerScreen.y, screenRadius, 0, Math.PI * 2);
     ctx.stroke();
@@ -83,7 +83,6 @@ export class CanvasRenderer {
     // Secondary inner warning ring
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = 'rgba(239, 68, 68, 0.25)';
-    ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.arc(centerScreen.x, centerScreen.y, screenRadius - 40 * camera.zoom, 0, Math.PI * 2);
     ctx.stroke();

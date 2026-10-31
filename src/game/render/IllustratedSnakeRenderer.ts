@@ -7,6 +7,29 @@ if (typeof window !== 'undefined') {
   preheatSnakeSpriteAtlas();
 }
 
+const glowCanvasCache: Map<string, HTMLCanvasElement> = new Map();
+function getSkinGlowCanvas(glowColor: string): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null;
+  let c = glowCanvasCache.get(glowColor);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const gctx = c.getContext('2d');
+    if (gctx) {
+      const g = gctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      g.addColorStop(0, glowColor);
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      gctx.fillStyle = g;
+      gctx.beginPath();
+      gctx.arc(64, 64, 64, 0, Math.PI * 2);
+      gctx.fill();
+    }
+    glowCanvasCache.set(glowColor, c);
+  }
+  return c;
+}
+
 export interface IllustratedRenderOptions {
   enableGlow?: boolean;
 }
@@ -418,18 +441,16 @@ function renderRealisticDragonSerpent(
     ctx.stroke();
   }
 
-  // D. Boosting Aura
+  // D. Boosting Aura (pre-baked texture blit, zero runtime createRadialGradient CPU cost)
   if (isBoosting) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const auraGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 2.2);
-    auraGrad.addColorStop(0, skin.glowColor || 'rgba(34, 197, 94, 0.45)');
-    auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = auraGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, R * 2.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    const glowCanvas = getSkinGlowCanvas(skin.glowColor || 'rgba(34, 197, 94, 0.45)');
+    if (glowCanvas) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const size = R * 4.4;
+      ctx.drawImage(glowCanvas, -size * 0.5, -size * 0.5, size, size);
+      ctx.restore();
+    }
   }
 
   ctx.restore();

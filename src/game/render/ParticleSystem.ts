@@ -15,6 +15,7 @@ export interface Particle {
 export class ParticleSystem {
   public particles: Particle[] = [];
   public maxParticles: number = 300;
+  private particleBuckets: Map<string, number[]> = new Map();
 
   constructor(maxParticles: number = 300) {
     this.maxParticles = maxParticles;
@@ -90,16 +91,43 @@ export class ParticleSystem {
   }
 
   render(ctx: CanvasRenderingContext2D, camera: Camera): void {
-    for (const p of this.particles) {
+    if (this.particles.length === 0) return;
+
+    for (const arr of this.particleBuckets.values()) {
+      arr.length = 0;
+    }
+
+    const zoom = camera.zoom;
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
       if (!camera.isInView(p.position.x, p.position.y, p.radius * 2)) continue;
 
       const screen = camera.worldToScreen(p.position.x, p.position.y);
-      const r = p.radius * camera.zoom;
+      const r = Math.max(1, p.radius * zoom);
 
-      ctx.globalAlpha = p.alpha;
-      ctx.fillStyle = p.color;
+      let bucket = this.particleBuckets.get(p.color);
+      if (!bucket) {
+        bucket = [];
+        this.particleBuckets.set(p.color, bucket);
+      }
+      bucket.push(screen.x, screen.y, r);
+    }
+
+    // Render all particles in batches by color (one beginPath/fill per color, cuts 300 calls to ~3)
+    ctx.globalAlpha = 0.82;
+    for (const [color, coords] of this.particleBuckets.entries()) {
+      const len = coords.length;
+      if (len === 0) continue;
+
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(screen.x, screen.y, Math.max(1, r), 0, Math.PI * 2);
+      for (let i = 0; i < len; i += 3) {
+        const x = coords[i];
+        const y = coords[i + 1];
+        const r = coords[i + 2];
+        ctx.moveTo(x + r, y);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+      }
       ctx.fill();
     }
     ctx.globalAlpha = 1.0;

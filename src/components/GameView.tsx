@@ -518,7 +518,7 @@ export const GameView: React.FC = () => {
               />
             )}
             {onlineServerInfo && (
-              <div className="mt-1 bg-black/60 backdrop-blur-md border border-emerald-500/30 rounded-lg px-1.5 py-0.5 text-[8px] font-mono text-emerald-300 flex items-center gap-1 shadow whitespace-nowrap">
+              <div className="mt-1 bg-black/85 border border-emerald-500/30 rounded-lg px-1.5 py-0.5 text-[8px] font-mono text-emerald-300 flex items-center gap-1 shadow whitespace-nowrap">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span>{onlineServerInfo.roomId.toUpperCase()} • {onlineServerInfo.ping}ms</span>
               </div>
@@ -535,7 +535,7 @@ export const GameView: React.FC = () => {
             {/* Bottom Left: FPS Counter */}
             <div className="flex items-center min-w-[70px]">
               {settings.showFps && playerStats && (
-                <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-md px-2 py-0.5 text-[10px] font-mono text-emerald-400 select-none shadow">
+                <div className="bg-black/80 border border-white/10 rounded-md px-2 py-0.5 text-[10px] font-mono text-emerald-400 select-none shadow">
                   {playerStats.fps} FPS
                 </div>
               )}
@@ -556,14 +556,14 @@ export const GameView: React.FC = () => {
             <div className="flex items-center gap-2 pointer-events-auto min-w-[70px] justify-end">
               <button
                 onClick={handleReturnToMenu}
-                className="w-9 h-9 rounded-xl bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                className="w-9 h-9 rounded-xl bg-[#0a0e1a]/95 border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95"
                 title="Return to Menu"
               >
                 <Home className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setShowSettings(true)}
-                className="w-9 h-9 rounded-xl bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                className="w-9 h-9 rounded-xl bg-[#0a0e1a]/95 border border-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer active:scale-95"
                 title="Settings"
               >
                 <SettingsIcon className="w-4 h-4" />
@@ -596,7 +596,7 @@ export const GameView: React.FC = () => {
                 arenaRadius={engineRef.current?.sessionConfig.arenaRadius}
               />
             )}
-            <div className="bg-[#0a0e1a]/90 backdrop-blur-md border border-[#1e293b] rounded-xl px-2.5 py-1.5 text-[10px] text-[#94a3b8] flex flex-col gap-0.5">
+            <div className="bg-[#0a0e1a]/95 border border-[#1e293b] rounded-xl px-2.5 py-1.5 text-[10px] text-[#94a3b8] flex flex-col gap-0.5">
               <div className="flex items-center gap-1.5 font-game font-bold text-[#f1f5f9] uppercase tracking-wider">
                 <Globe className="w-3.5 h-3.5 text-blue-400" />
                 <span>Arena: {sessionConfig.arenaRadius * 2}m</span>
@@ -619,7 +619,7 @@ export const GameView: React.FC = () => {
           {/* Bottom Left: FPS counter in spectator mode */}
           <div className="absolute bottom-3 sm:bottom-5 left-3 sm:left-5 pointer-events-none z-10">
             {settings.showFps && playerStats && (
-              <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-md px-2 py-0.5 text-[10px] font-mono text-emerald-400 select-none shadow">
+              <div className="bg-black/80 border border-white/10 rounded-md px-2 py-0.5 text-[10px] font-mono text-emerald-400 select-none shadow">
                 {playerStats.fps} FPS
               </div>
             )}

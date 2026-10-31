@@ -78,7 +78,7 @@ export const SpectatorControls: React.FC<SpectatorControlsProps> = ({
   return (
     <div className="fixed inset-x-0 bottom-4 z-30 pointer-events-none flex flex-col items-center gap-2.5 px-4">
       {/* Top Floating Spectator Status & Controls */}
-      <div className="pointer-events-auto bg-[#0a0e1a]/95 border border-[#1e293b] rounded-2xl p-2.5 sm:p-3 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 max-w-4xl w-full">
+      <div className="pointer-events-auto bg-[#0a0e1a]/95 border border-[#1e293b] rounded-2xl p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-3 max-w-4xl w-full">
         {/* Left: Mode Badge & Target Info */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-blue-950/40 border border-blue-800/40 px-2.5 py-1 rounded-xl">
@@ -236,7 +236,7 @@ export const SpectatorControls: React.FC<SpectatorControlsProps> = ({
       </div>
 
       {/* Helper Banner */}
-      <div className="text-[11px] text-[#64748b] bg-[#0a0e1a]/80 backdrop-blur-md border border-[#1e293b] px-3.5 py-1 rounded-full flex items-center gap-2">
+      <div className="text-[11px] text-[#64748b] bg-[#0a0e1a]/95 border border-[#1e293b] px-3.5 py-1 rounded-full flex items-center gap-2">
         <Info className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
         <span>Click any snake on the Leaderboard to spectate them. Use <strong>Mouse Wheel</strong> to zoom.</span>
       </div>
