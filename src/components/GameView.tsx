@@ -402,22 +402,12 @@ export const GameView: React.FC = () => {
         engineRef.current.startOnlineSession(client, isSpectating);
         setGameState(isSpectating ? 'spectating' : 'playing');
       } catch (err) {
-        console.warn('Could not connect to WebSocket server, running simulated arena room:', err);
-        const simulatedConfig: ArenaSessionConfig = {
-          ...DEFAULT_SESSION_CONFIG,
-          botDifficulty: roomId === 'hard' ? 'hard' : 'medium',
-          botCount: roomId === 'hard' ? 45 : 38,
-          arenaRadius: 4500,
-        };
-        setSessionConfig(simulatedConfig);
-        if (isSpectating) {
-          handleStartSpectating(simulatedConfig);
-        } else {
-          handleStartGame(simulatedConfig);
-        }
+        console.error('Failed to connect to dedicated multiplayer server:', err);
+        alert('Could not connect to the official dedicated server. Please ensure the Render server is live.');
+        setGameState('menu');
       }
     },
-    [settings.playerName, settings.selectedSkinId, handleStartGame, handleStartSpectating]
+    [settings.playerName, settings.selectedSkinId]
   );
 
   return (

@@ -153,20 +153,19 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                   ? 'bg-emerald-400 animate-pulse'
                   : isChecking
                   ? 'bg-amber-400 animate-pulse'
-                  : 'bg-slate-500'
+                  : 'bg-rose-500'
               }`}
             />
             <span className="text-slate-300 font-medium">
               {arenas.some((a) => a.isOnline) ? (
                 <>
-                  Official Dedicated Arenas: <strong className="text-emerald-400">Online</strong>
+                  Official Dedicated Arenas: <strong className="text-emerald-400">ONLINE</strong>
                 </>
               ) : isChecking ? (
-                <>Connecting to Global Arenas...</>
+                <>Connecting to Render Dedicated Backend...</>
               ) : (
                 <>
-                  Dedicated Arenas:{' '}
-                  <strong className="text-amber-400">Local Simulation Fallback Active</strong>
+                  Dedicated Arenas: <strong className="text-rose-400">OFFLINE</strong>
                 </>
               )}
             </span>
@@ -205,9 +204,9 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                           ONLINE • {arena.pingMs}ms
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 bg-amber-950/80 border border-amber-600/50 text-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                          LOCAL SIMULATION
+                        <span className="flex items-center gap-1 bg-rose-950/80 border border-rose-600/50 text-rose-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          OFFLINE
                         </span>
                       )}
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${badgeColor}`}>
@@ -231,13 +230,13 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                     <div>
                       <div className="text-slate-400 text-[10px]">Active Snakes</div>
                       <div className="font-bold text-cyan-300 font-mono">
-                        {arena.snakesCount} Serpents
+                        {arena.isOnline ? `${arena.snakesCount} Serpents` : '--'}
                       </div>
                     </div>
                     <div>
                       <div className="text-slate-400 text-[10px]">Server Uptime</div>
                       <div className="font-bold text-slate-200 font-mono">
-                        {formatUptime(arena.uptimeSeconds)}
+                        {arena.isOnline ? formatUptime(arena.uptimeSeconds) : '--'}
                       </div>
                     </div>
                   </div>
@@ -246,20 +245,28 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
                 {/* Action Buttons */}
                 <div className="flex flex-col gap-2">
                   <button
+                    disabled={!arena.isOnline}
                     onClick={() => onJoinArena(arena.id, false, serverUrl)}
                     className={`w-full py-3 rounded-2xl font-black text-sm uppercase tracking-wider text-slate-950 shadow-lg active:scale-98 transition-all flex items-center justify-center gap-1.5 ${
-                      isMed
+                      !arena.isOnline
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                        : isMed
                         ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:brightness-110'
                         : 'bg-gradient-to-r from-rose-500 via-orange-400 to-amber-400 hover:brightness-110'
                     }`}
                   >
-                    <span>ENTER & PLAY</span>
-                    <span>🚀</span>
+                    <span>{arena.isOnline ? 'ENTER & PLAY' : 'SERVER OFFLINE'}</span>
+                    <span>{arena.isOnline ? '🚀' : '🔒'}</span>
                   </button>
 
                   <button
+                    disabled={!arena.isOnline}
                     onClick={() => onJoinArena(arena.id, true, serverUrl)}
-                    className="w-full py-2 rounded-2xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 font-bold text-slate-300 hover:text-white text-xs transition-colors flex items-center justify-center gap-1"
+                    className={`w-full py-2 rounded-2xl border font-bold text-xs transition-colors flex items-center justify-center gap-1 ${
+                      !arena.isOnline
+                        ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
+                        : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700/80 text-slate-300 hover:text-white'
+                    }`}
                   >
                     <span>👁️ Spectate Live Arena</span>
                   </button>
@@ -271,7 +278,7 @@ export const PublicArenasModal: React.FC<PublicArenasModalProps> = ({
 
         {/* Footer Note */}
         <div className="text-center text-[11px] text-slate-400">
-          ⚡ 30 Hz server-authoritative tick rate with real-time multiplayer, persistent AI ecosystems, and automatic local fallback.
+          ⚡ 30 Hz server-authoritative tick rate with real-time WebSocket multiplayer and persistent AI ecosystems on Render.
         </div>
       </div>
     </div>
