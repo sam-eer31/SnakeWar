@@ -933,19 +933,6 @@ function handleBrokerConnection(ws, pathname) {
       const raw = message.toString();
       const data = JSON.parse(raw);
 
-      // WebRTC Signaling
-      if (data.type === 'webrtc_signal' && data.targetConnId) {
-        const target = room.clients.get(data.targetConnId);
-        if (target && target.readyState === WebSocket.OPEN) {
-          target.send(JSON.stringify({
-            type: 'webrtc_signal',
-            fromConnId: connId,
-            signal: data.signal,
-          }));
-        }
-        return;
-      }
-
       // Host claims authority
       if (data.type === 'claim_host') {
         room.hostConnId = connId;

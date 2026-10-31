@@ -1,6 +1,7 @@
 /**
- * Cloudflare PartyServer Edge Network Client for SnakeWar
- * Provides sub-15ms edge routing on Cloudflare Durable Objects.
+ * High-Speed Regional WebSocket Network Client for SnakeWar
+ * Directly routes all player actions and tick broadcasts through the dedicated server.
+ * Pure WebSocket - 100% reliable on every network, 0% ICE/NAT connection failures.
  */
 
 import { ServerInitPacket, ServerTickPacket } from './NetworkClient';
@@ -16,7 +17,7 @@ export interface PartyRoomInfo {
 }
 
 export const DEFAULT_PARTY_HOST =
-  process.env.NEXT_PUBLIC_PARTYKIT_HOST || 'localhost:1999';
+  process.env.NEXT_PUBLIC_PARTYKIT_HOST || 'localhost:3001';
 
 export function getPartyWsUrl(host: string, room: string): string {
   const cleanHost = host.replace(/^https?:\/\//, '').replace(/^wss?:\/\//, '').replace(/\/+$/, '');
@@ -25,16 +26,9 @@ export function getPartyWsUrl(host: string, room: string): string {
   return `${protocol}${cleanHost}/parties/snake-room/${encodeURIComponent(room)}`;
 }
 
-export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
-];
-
 /**
  * PartyHost: runs in the browser of the player who hosts the match.
- * Relays local GameEngine state through Cloudflare Edge to guests.
+ * Relays local GameEngine state through the dedicated server to guests.
  */
 export class PartyHost {
   public ws: WebSocket | null = null;
@@ -42,9 +36,6 @@ export class PartyHost {
   public roomCode: string;
   public ping: number = 0;
   private pingInterval: any = null;
-  private peerConnections: Map<string, RTCPeerConnection> = new Map();
-  private dataChannels: Map<string, RTCDataChannel> = new Map();
-  private pendingHostCandidates: Map<string, RTCIceCandidateInit[]> = new Map();
 
   public onGuestJoined: ((guestConnId: string, name: string, skinId: string, isSpectator: boolean) => void) | null = null;
   public onGuestLeft: ((guestConnId: string) => void) | null = null;
@@ -72,7 +63,7 @@ export class PartyHost {
 
         ws.onopen = () => {
           this.isConnected = true;
-          // Claim host role in this Cloudflare edge room
+          // Claim host role in this match room
           ws.send(
             JSON.stringify({
               type: 'claim_host',
@@ -108,7 +99,6 @@ export class PartyHost {
             }
 
             if (data.type === 'guest_joined') {
-              this.initWebRTCHost(data.guestConnId);
               if (this.onGuestJoined) {
                 this.onGuestJoined(data.guestConnId, data.name, data.skinId, !!data.isSpectator);
               }
@@ -116,12 +106,6 @@ export class PartyHost {
             }
 
             if (data.type === 'guest_left') {
-              const pc = this.peerConnections.get(data.guestConnId);
-              if (pc) {
-                pc.close();
-                this.peerConnections.delete(data.guestConnId);
-              }
-              this.dataChannels.delete(data.guestConnId);
               if (this.onGuestLeft) {
                 this.onGuestLeft(data.guestConnId);
               }
@@ -131,40 +115,6 @@ export class PartyHost {
             if (data.type === 'guest_input') {
               if (this.onGuestInput) {
                 this.onGuestInput(data.guestConnId, data.angle, data.isBoosting);
-              }
-              return;
-            }
-
-            if (data.type === 'webrtc_signal' && data.fromConnId && data.signal) {
-              const pc = this.peerConnections.get(data.fromConnId);
-              if (pc) {
-                if (data.signal.type === 'answer') {
-                  console.log('[WebRTC Host] Received answer from guest:', data.fromConnId);
-                  const sdpInit = data.signal.sdp?.sdp ? data.signal.sdp : data.signal;
-                  pc.setRemoteDescription(new RTCSessionDescription(sdpInit)).then(() => {
-                    console.log('[WebRTC Host] Successfully set remote description (answer) for guest:', data.fromConnId);
-                    const queue = this.pendingHostCandidates.get(data.fromConnId);
-                    if (queue) {
-                      for (const c of queue) {
-                        pc.addIceCandidate(new RTCIceCandidate(c)).catch((e) => console.warn('[WebRTC Host] ICE candidate error:', e));
-                      }
-                      this.pendingHostCandidates.delete(data.fromConnId);
-                    }
-                  }).catch((err) => {
-                    console.error('[WebRTC Host] Failed to set remote description:', err);
-                  });
-                } else if (data.signal.type === 'candidate' && data.signal.candidate) {
-                  if (pc.remoteDescription) {
-                    pc.addIceCandidate(new RTCIceCandidate(data.signal.candidate)).catch(() => {});
-                  } else {
-                    let queue = this.pendingHostCandidates.get(data.fromConnId);
-                    if (!queue) {
-                      queue = [];
-                      this.pendingHostCandidates.set(data.fromConnId, queue);
-                    }
-                    queue.push(data.signal.candidate);
-                  }
-                }
               }
               return;
             }
@@ -202,77 +152,6 @@ export class PartyHost {
     });
   }
 
-  private initWebRTCHost(guestConnId: string) {
-    if (typeof RTCPeerConnection === 'undefined') return;
-    try {
-      console.log('[WebRTC Host] Initiating direct P2P offer for guest:', guestConnId);
-      const pc = new RTCPeerConnection({
-        iceServers: DEFAULT_ICE_SERVERS,
-        iceCandidatePoolSize: 2,
-      });
-      this.peerConnections.set(guestConnId, pc);
-
-      pc.oniceconnectionstatechange = () => {
-        console.log('[WebRTC Host] ICE state for guest', guestConnId, ':', pc.iceConnectionState);
-      };
-
-      pc.onconnectionstatechange = () => {
-        console.log('[WebRTC Host] Connection state for guest', guestConnId, ':', pc.connectionState);
-      };
-
-      const dc = pc.createDataChannel('snake_p2p', { ordered: false, maxRetransmits: 0 });
-      this.dataChannels.set(guestConnId, dc);
-
-      dc.onopen = () => {
-        console.log('[WebRTC Host] Direct P2P DataChannel OPEN with guest:', guestConnId);
-      };
-
-      dc.onclose = () => {
-        console.log('[WebRTC Host] DataChannel closed with guest:', guestConnId);
-      };
-
-      dc.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'input' && this.onGuestInput) {
-            this.onGuestInput(guestConnId, msg.angle, msg.isBoosting);
-          } else if (msg.type === 'p2p_ping') {
-            if (dc.readyState === 'open') {
-              dc.send(JSON.stringify({ type: 'p2p_pong', t: msg.t }));
-            }
-          }
-        } catch {}
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
-          const candJson = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
-          this.ws.send(JSON.stringify({
-            type: 'webrtc_signal',
-            targetConnId: guestConnId,
-            signal: { type: 'candidate', candidate: candJson },
-          }));
-        }
-      };
-
-      pc.createOffer().then((offer) => {
-        pc.setLocalDescription(offer);
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          console.log('[WebRTC Host] Sent offer to guest:', guestConnId);
-          this.ws.send(JSON.stringify({
-            type: 'webrtc_signal',
-            targetConnId: guestConnId,
-            signal: { type: 'offer', sdp: offer },
-          }));
-        }
-      }).catch((err) => {
-        console.warn('[WebRTC Host] Failed to create offer:', err);
-      });
-    } catch (err) {
-      console.warn('[WebRTC Host] Error:', err);
-    }
-  }
-
   sendInitToGuest(guestConnId: string, initPacket: ServerInitPacket): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(
@@ -286,20 +165,8 @@ export class PartyHost {
   }
 
   broadcastTick(tickPacket: ServerTickPacket): void {
-    const raw = JSON.stringify(tickPacket);
-    let openP2PCount = 0;
-    // Send directly over WebRTC DataChannels (UDP) for minimum latency
-    for (const dc of this.dataChannels.values()) {
-      if (dc.readyState === 'open') {
-        try {
-          dc.send(raw);
-          openP2PCount++;
-        } catch {}
-      }
-    }
-    // Only send over WebSocket if no P2P DataChannels are open yet
-    if (openP2PCount === 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(raw);
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(tickPacket));
     }
   }
 
@@ -331,12 +198,6 @@ export class PartyHost {
 
   disconnect(): void {
     if (this.pingInterval) clearInterval(this.pingInterval);
-    for (const pc of this.peerConnections.values()) {
-      try { pc.close(); } catch {}
-    }
-    this.peerConnections.clear();
-    this.dataChannels.clear();
-    this.pendingHostCandidates.clear();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -346,7 +207,7 @@ export class PartyHost {
 }
 
 /**
- * PartyGuest: connects guest players to a host's room via Cloudflare.
+ * PartyGuest: connects guest players to a host's room via the dedicated server.
  */
 export class PartyGuest {
   public ws: WebSocket | null = null;
@@ -354,10 +215,6 @@ export class PartyGuest {
   public mySnakeId: string | null = null;
   public ping: number = 0;
   private pingInterval: any = null;
-  private pc: RTCPeerConnection | null = null;
-  private dc: RTCDataChannel | null = null;
-  private hostConnId: string | null = null;
-  private pendingCandidates: RTCIceCandidateInit[] = [];
   private lastReceivedTick: number = 0;
 
   public onInit: ((data: ServerInitPacket) => void) | null = null;
@@ -422,12 +279,6 @@ export class PartyGuest {
           }
 
           this.pingInterval = setInterval(() => {
-            if (this.dc && this.dc.readyState === 'open') {
-              try {
-                this.dc.send(JSON.stringify({ type: 'p2p_ping', t: performance.now() }));
-                return;
-              } catch {}
-            }
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: 'ping', t: Date.now() }));
             }
@@ -445,11 +296,6 @@ export class PartyGuest {
               return;
             }
 
-            if (data.type === 'webrtc_signal' && data.fromConnId && data.signal) {
-              this.handleWebRTCSignal(data.fromConnId, data.signal);
-              return;
-            }
-
             if (data.type === 'init') {
               this.mySnakeId = data.myId;
               if (this.onInit) this.onInit(data);
@@ -458,7 +304,7 @@ export class PartyGuest {
 
             if (data.type === 'tick') {
               if (data.tick && data.tick <= this.lastReceivedTick) {
-                return; // Ignore duplicate / slower WebSocket tick if UDP already processed
+                return;
               }
               this.lastReceivedTick = data.tick;
               if (this.onTick) this.onTick(data);
@@ -510,114 +356,12 @@ export class PartyGuest {
     });
   }
 
-  private async handleWebRTCSignal(fromConnId: string, signal: any) {
-    if (typeof RTCPeerConnection === 'undefined') return;
-    this.hostConnId = fromConnId;
-
-    try {
-      if (signal.type === 'offer') {
-        console.log('[WebRTC Guest] Received offer from host:', fromConnId);
-        if (!this.pc) {
-          const pc = new RTCPeerConnection({
-            iceServers: DEFAULT_ICE_SERVERS,
-            iceCandidatePoolSize: 2,
-          });
-          this.pc = pc;
-
-          pc.oniceconnectionstatechange = () => {
-            console.log('[WebRTC Guest] ICE state:', pc.iceConnectionState);
-          };
-
-          pc.onconnectionstatechange = () => {
-            console.log('[WebRTC Guest] Connection state:', pc.connectionState);
-          };
-
-          pc.ondatachannel = (event) => {
-            const dc = event.channel;
-            this.dc = dc;
-
-            dc.onopen = () => {
-              console.log('[WebRTC] Direct P2P DataChannel open with host!');
-              dc.send(JSON.stringify({ type: 'p2p_ping', t: performance.now() }));
-            };
-
-            dc.onclose = () => {
-              console.log('[WebRTC] Direct P2P DataChannel closed with host');
-            };
-
-            dc.onmessage = (e) => {
-              try {
-                const msg = JSON.parse(e.data);
-                if (msg.type === 'p2p_pong') {
-                  this.ping = Math.max(1, Math.round(performance.now() - msg.t));
-                  if (this.onPing) this.onPing(this.ping);
-                  return;
-                }
-                if (msg.type === 'tick') {
-                  if (msg.tick && msg.tick <= this.lastReceivedTick) {
-                    return;
-                  }
-                  this.lastReceivedTick = msg.tick;
-                  if (this.onTick) this.onTick(msg);
-                  return;
-                }
-              } catch {}
-            };
-          };
-
-          pc.onicecandidate = (event) => {
-            if (event.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
-              const candJson = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
-              this.ws.send(
-                JSON.stringify({
-                  type: 'webrtc_signal',
-                  targetConnId: this.hostConnId,
-                  signal: { type: 'candidate', candidate: candJson },
-                })
-              );
-            }
-          };
-        }
-
-        const remoteOffer = signal.sdp?.sdp ? signal.sdp : signal;
-        await this.pc.setRemoteDescription(new RTCSessionDescription(remoteOffer));
-
-        for (const cand of this.pendingCandidates) {
-          await this.pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
-        }
-        this.pendingCandidates = [];
-
-        const answer = await this.pc.createAnswer();
-        await this.pc.setLocalDescription(answer);
-
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          console.log('[WebRTC Guest] Sent answer back to host');
-          this.ws.send(
-            JSON.stringify({
-              type: 'webrtc_signal',
-              targetConnId: this.hostConnId,
-              signal: { type: 'answer', sdp: answer },
-            })
-          );
-        }
-      } else if (signal.type === 'candidate' && signal.candidate) {
-        if (this.pc && this.pc.remoteDescription) {
-          this.pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
-        } else {
-          this.pendingCandidates.push(signal.candidate);
-        }
-      }
-    } catch (err) {
-      console.warn('WebRTC guest signal error:', err);
-    }
-  }
-
   private lastInputTime: number = 0;
   private lastSentAngle: number = -999;
   private lastSentBoosting: boolean = false;
 
   sendInput(angle: number, isBoosting: boolean): void {
-    if (!this.isConnected) return;
+    if (!this.isConnected || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const now = performance.now();
     const angleDiff = Math.abs(angle - this.lastSentAngle);
 
@@ -631,24 +375,13 @@ export class PartyGuest {
       this.lastSentAngle = angle;
       this.lastSentBoosting = isBoosting;
 
-      const payload = JSON.stringify({
-        type: 'input',
-        angle: Number(angle.toFixed(3)),
-        isBoosting,
-      });
-
-      // Direct WebRTC DataChannel (UDP) has 0ms server relay latency
-      if (this.dc && this.dc.readyState === 'open') {
-        try {
-          this.dc.send(payload);
-          return;
-        } catch {}
-      }
-
-      // Fallback via WebSocket
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(payload);
-      }
+      this.ws.send(
+        JSON.stringify({
+          type: 'input',
+          angle: Number(angle.toFixed(3)),
+          isBoosting,
+        })
+      );
     }
   }
 
@@ -666,15 +399,6 @@ export class PartyGuest {
 
   disconnect(): void {
     if (this.pingInterval) clearInterval(this.pingInterval);
-    if (this.dc) {
-      try { this.dc.close(); } catch {}
-      this.dc = null;
-    }
-    if (this.pc) {
-      try { this.pc.close(); } catch {}
-      this.pc = null;
-    }
-    this.pendingCandidates = [];
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -682,4 +406,3 @@ export class PartyGuest {
     this.isConnected = false;
   }
 }
-
