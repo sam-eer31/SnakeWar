@@ -100,7 +100,20 @@ export class SnakeRoom extends Server<Env> {
 
       // --- MATCH OPERATIONS (Path B: High-Speed Host-Authoritative Broker) ---
 
-      // 1. Host announces authority over room
+      // 1. WebRTC Peer-to-Peer Signaling (Top Priority: Route Offer/Answer/ICE immediately)
+      if (data.type === 'webrtc_signal' && data.targetConnId) {
+        const target = this.getConnection(data.targetConnId);
+        if (target) {
+          target.send(JSON.stringify({
+            type: 'webrtc_signal',
+            fromConnId: conn.id,
+            signal: data.signal,
+          }));
+        }
+        return;
+      }
+
+      // 2. Host announces authority over room
       if (data.type === 'claim_host') {
         this.hostConnId = conn.id;
         this.metadata = data.metadata || null;
@@ -113,7 +126,7 @@ export class SnakeRoom extends Server<Env> {
         return;
       }
 
-      // 2. Guest requests to join room
+      // 3. Guest requests to join room
       if (data.type === 'guest_join') {
         const host = this.getHostConnection();
         if (host) {
@@ -134,7 +147,7 @@ export class SnakeRoom extends Server<Env> {
         return;
       }
 
-      // 3. Host sending snapshots or tick updates
+      // 4. Host sending snapshots or tick updates
       if (conn.id === this.hostConnId) {
         if ((data.type === 'init_response' || data.type === 'game_over_response') && data.targetConnId) {
           const guest = this.getConnection(data.targetConnId);
@@ -154,7 +167,7 @@ export class SnakeRoom extends Server<Env> {
         return;
       }
 
-      // 4. Guest sends input directly to Host
+      // 5. Guest sends input directly to Host (WebSocket fallback)
       if (data.type === 'input') {
         const host = this.getHostConnection();
         if (host) {
@@ -163,19 +176,6 @@ export class SnakeRoom extends Server<Env> {
             guestConnId: conn.id,
             angle: data.angle,
             isBoosting: data.isBoosting,
-          }));
-        }
-        return;
-      }
-
-      // 5. WebRTC Peer-to-Peer Signaling (exchanges SDP Offer / Answer / ICE Candidates)
-      if (data.type === 'webrtc_signal' && data.targetConnId) {
-        const target = this.getConnection(data.targetConnId);
-        if (target) {
-          target.send(JSON.stringify({
-            type: 'webrtc_signal',
-            fromConnId: conn.id,
-            signal: data.signal,
           }));
         }
         return;

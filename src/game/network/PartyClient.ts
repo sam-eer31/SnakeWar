@@ -193,16 +193,28 @@ export class PartyHost {
   private initWebRTCHost(guestConnId: string) {
     if (typeof RTCPeerConnection === 'undefined') return;
     try {
+      console.log('[WebRTC Host] Initiating direct P2P offer for guest:', guestConnId);
       const pc = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
         ],
       });
       this.peerConnections.set(guestConnId, pc);
 
       const dc = pc.createDataChannel('snake_p2p', { ordered: false, maxRetransmits: 0 });
       this.dataChannels.set(guestConnId, dc);
+
+      dc.onopen = () => {
+        console.log('[WebRTC Host] Direct P2P DataChannel OPEN with guest:', guestConnId);
+      };
+
+      dc.onclose = () => {
+        console.log('[WebRTC Host] DataChannel closed with guest:', guestConnId);
+      };
 
       dc.onmessage = (event) => {
         try {
@@ -230,14 +242,19 @@ export class PartyHost {
       pc.createOffer().then((offer) => {
         pc.setLocalDescription(offer);
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          console.log('[WebRTC Host] Sent offer to guest:', guestConnId);
           this.ws.send(JSON.stringify({
             type: 'webrtc_signal',
             targetConnId: guestConnId,
             signal: { type: 'offer', sdp: offer },
           }));
         }
-      }).catch(() => {});
-    } catch {}
+      }).catch((err) => {
+        console.warn('[WebRTC Host] Failed to create offer:', err);
+      });
+    } catch (err) {
+      console.warn('[WebRTC Host] Error:', err);
+    }
   }
 
   sendInitToGuest(guestConnId: string, initPacket: ServerInitPacket): void {
@@ -254,16 +271,18 @@ export class PartyHost {
 
   broadcastTick(tickPacket: ServerTickPacket): void {
     const raw = JSON.stringify(tickPacket);
+    let openP2PCount = 0;
     // Send directly over WebRTC DataChannels (UDP) for minimum latency
     for (const dc of this.dataChannels.values()) {
       if (dc.readyState === 'open') {
         try {
           dc.send(raw);
+          openP2PCount++;
         } catch {}
       }
     }
-    // Guaranteed WebSocket fallback
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    // Only send over WebSocket if no P2P DataChannels are open yet
+    if (openP2PCount === 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(raw);
     }
   }
@@ -481,11 +500,15 @@ export class PartyGuest {
 
     try {
       if (signal.type === 'offer') {
+        console.log('[WebRTC Guest] Received offer from host:', fromConnId);
         if (!this.pc) {
           const pc = new RTCPeerConnection({
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'stun:stun2.l.google.com:19302' },
+              { urls: 'stun:stun3.l.google.com:19302' },
+              { urls: 'stun:stun4.l.google.com:19302' },
             ],
           });
           this.pc = pc;
@@ -495,7 +518,12 @@ export class PartyGuest {
             this.dc = dc;
 
             dc.onopen = () => {
+              console.log('[WebRTC] Direct P2P DataChannel open with host!');
               dc.send(JSON.stringify({ type: 'p2p_ping', t: performance.now() }));
+            };
+
+            dc.onclose = () => {
+              console.log('[WebRTC] Direct P2P DataChannel closed with host');
             };
 
             dc.onmessage = (e) => {
@@ -542,6 +570,7 @@ export class PartyGuest {
         await this.pc.setLocalDescription(answer);
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          console.log('[WebRTC Guest] Sent answer back to host');
           this.ws.send(
             JSON.stringify({
               type: 'webrtc_signal',
