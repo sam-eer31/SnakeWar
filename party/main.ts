@@ -131,6 +131,11 @@ export class SnakeRoom extends Server<Env> {
           if (guest) {
             guest.send(JSON.stringify(data.packet));
           }
+        } else if (data.type === 'peer_pong' && data.guestConnId) {
+          const guest = this.getConnection(data.guestConnId);
+          if (guest) {
+            guest.send(JSON.stringify({ type: 'pong', t: data.t }));
+          }
         } else if (data.type === 'tick') {
           this.broadcast(raw, [conn.id]);
         } else if (data.type === 'player_joined' || data.type === 'player_left') {
@@ -153,9 +158,14 @@ export class SnakeRoom extends Server<Env> {
         return;
       }
 
-      // 5. Latency ping
+      // 5. Latency ping (measured end-to-end between Guest and Host)
       if (data.type === 'ping') {
-        conn.send(JSON.stringify({ type: 'pong', t: data.t }));
+        const host = this.getHostConnection();
+        if (host && conn.id !== this.hostConnId) {
+          host.send(JSON.stringify({ type: 'peer_ping', guestConnId: conn.id, t: data.t }));
+        } else {
+          conn.send(JSON.stringify({ type: 'pong', t: data.t }));
+        }
         return;
       }
     } catch (err) {

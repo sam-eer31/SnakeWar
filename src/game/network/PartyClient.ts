@@ -115,6 +115,19 @@ export class PartyHost {
               }
               return;
             }
+
+            if (data.type === 'peer_ping') {
+              if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(
+                  JSON.stringify({
+                    type: 'peer_pong',
+                    guestConnId: data.guestConnId,
+                    t: data.t,
+                  })
+                );
+              }
+              return;
+            }
           } catch (err) {
             console.error('PartyHost message error:', err);
           }
@@ -310,8 +323,24 @@ export class PartyGuest {
     });
   }
 
+  private lastInputTime: number = 0;
+  private lastSentAngle: number = -999;
+  private lastSentBoosting: boolean = false;
+
   sendInput(angle: number, isBoosting: boolean): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const now = performance.now();
+    const angleDiff = Math.abs(angle - this.lastSentAngle);
+
+    // Send immediately on boost change, angle turn > 0.03 rad (~1.7 deg), or every 35ms
+    if (
+      isBoosting !== this.lastSentBoosting ||
+      angleDiff > 0.03 ||
+      now - this.lastInputTime >= 35
+    ) {
+      this.lastInputTime = now;
+      this.lastSentAngle = angle;
+      this.lastSentBoosting = isBoosting;
       this.ws.send(
         JSON.stringify({
           type: 'input',

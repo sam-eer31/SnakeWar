@@ -365,46 +365,78 @@ export class GameEngine {
         const distSq = dx * dx + dy * dy;
 
         if (localSnake === this.playerSnake) {
-          // Client prediction correction for local player
+          // --- LOCAL PLAYER SNAKE (Client-Authoritative 120 FPS Prediction) ---
+          localSnake.radius = s.radius;
+          localSnake.mass = s.mass;
+          localSnake.score = s.score;
+          localSnake.kills = s.kills || 0;
+          localSnake.isBoosting = s.isBoosting;
+          localSnake.spawnProtectionTimer = s.spawnProtection ? 3.0 : 0;
+
+          // Head position reconciliation (gentle 12% blend avoids snapping)
           if (distSq > 150 * 150) {
             localSnake.position.set(s.x, s.y);
-          } else if (distSq > 4) {
-            localSnake.position.x += dx * 0.3;
-            localSnake.position.y += dy * 0.3;
+          } else if (distSq > 6) {
+            localSnake.position.x += dx * 0.12;
+            localSnake.position.y += dy * 0.12;
           }
+
+          // IMPORTANT: Do NOT overwrite targetAngle or segments for the local player!
+          // The local mouse controls targetAngle (0ms input latency),
+          // and localSnake.update() smoothly solves segments behind the head (0ms vibration)!
         } else {
-          // Remote snake correction (gentle lerp prevents vibrating/stuttering)
-          if (distSq > 200 * 200) {
+          // --- REMOTE SNAKES (Bots & Other Players) ---
+          if (distSq > 180 * 180) {
             localSnake.position.set(s.x, s.y);
           } else {
-            localSnake.position.x += dx * 0.45;
-            localSnake.position.y += dy * 0.45;
+            localSnake.position.x += dx * 0.5;
+            localSnake.position.y += dy * 0.5;
           }
-        }
 
-        // Angle blending
-        let angleDiff = s.angle - localSnake.angle;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        localSnake.angle += angleDiff * 0.45;
-        localSnake.targetAngle = s.angle;
+          // Remote angle interpolation
+          let angleDiff = s.angle - localSnake.angle;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          localSnake.angle += angleDiff * 0.5;
+          localSnake.targetAngle = s.angle;
 
-        localSnake.radius = s.radius;
-        localSnake.mass = s.mass;
-        localSnake.score = s.score;
-        localSnake.kills = s.kills || 0;
-        localSnake.tier = s.tier === 'player' ? undefined : s.tier;
-        localSnake.isBoosting = s.isBoosting;
-        localSnake.spawnProtectionTimer = s.spawnProtection ? 3.0 : 0;
-        if (s.isBot && s.aiState) {
-          localSnake.aiBrain = {
-            state: s.aiState,
-            personality: { archetype: s.archetype || 'VIPER' },
-          };
-        }
+          localSnake.radius = s.radius;
+          localSnake.mass = s.mass;
+          localSnake.score = s.score;
+          localSnake.kills = s.kills || 0;
+          localSnake.tier = s.tier === 'player' ? undefined : s.tier;
+          localSnake.isBoosting = s.isBoosting;
+          localSnake.spawnProtectionTimer = s.spawnProtection ? 3.0 : 0;
+          if (s.isBot && s.aiState) {
+            localSnake.aiBrain = {
+              state: s.aiState,
+              personality: { archetype: s.archetype || 'VIPER' },
+            };
+          }
 
-        if (s.segs && s.segs.length > 0) {
-          localSnake.segments = s.segs.map(([x, y]) => ({ x, y, radius: s.radius, angle: s.angle }));
+          // Smooth remote segments: dynamically adjust size and LERP towards server coordinates
+          if (s.segs && s.segs.length > 0) {
+            const targetLen = s.segs.length;
+            while (localSnake.segments.length < targetLen) {
+              const last = localSnake.segments[localSnake.segments.length - 1] || {
+                x: s.x,
+                y: s.y,
+                radius: s.radius,
+                angle: s.angle,
+              };
+              localSnake.segments.push({ x: last.x, y: last.y, radius: s.radius, angle: s.angle });
+            }
+            while (localSnake.segments.length > targetLen) {
+              localSnake.segments.pop();
+            }
+            for (let i = 0; i < targetLen; i++) {
+              const seg = localSnake.segments[i];
+              seg.x += (s.segs[i][0] - seg.x) * 0.55;
+              seg.y += (s.segs[i][1] - seg.y) * 0.55;
+              seg.radius = s.radius;
+              seg.angle = s.angle;
+            }
+          }
         }
       }
 
@@ -635,11 +667,17 @@ export class GameEngine {
     if (!this.playerSnake || this.playerSnake.isDead) return;
     const worldPos = this.camera.screenToWorld(screenX, screenY);
     this.playerSnake.setTargetDirection(worldPos.x, worldPos.y);
+    if (this.isOnline) {
+      this.networkClient?.sendInput(this.playerSnake.targetAngle, this.playerSnake.isBoosting);
+    }
   }
 
   setPlayerAngle(angle: number): void {
     if (!this.playerSnake || this.playerSnake.isDead) return;
     this.playerSnake.setTargetAngle(angle);
+    if (this.isOnline) {
+      this.networkClient?.sendInput(angle, this.playerSnake.isBoosting);
+    }
   }
 
   setPlayerBoosting(boosting: boolean): void {
@@ -650,6 +688,9 @@ export class GameEngine {
         soundManager.startBoost();
       } else {
         soundManager.stopBoost();
+      }
+      if (this.isOnline) {
+        this.networkClient?.sendInput(this.playerSnake.targetAngle, boosting);
       }
     }
   }
