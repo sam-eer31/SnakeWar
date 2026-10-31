@@ -14,7 +14,7 @@ export class Camera {
   // Free Cam & Manual Zoom for Spectator Mode
   public isFreeCam: boolean = false;
   public manualZoomMin: number = 0.25;
-  public manualZoomMax: number = 2.8;
+  public manualZoomMax: number = 3.6;
   public hasManualZoom: boolean = false;
 
   constructor(width: number, height: number) {

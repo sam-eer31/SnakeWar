@@ -25,8 +25,8 @@ export const GAME_CONFIG = {
   
   // Camera (Authentic Slither.io Distance & Dynamic Zoom)
   CAMERA_SMOOTHING: 0.09,
-  BASE_ZOOM: 1.15,
-  MIN_ZOOM: 0.48,
+  BASE_ZOOM: 1.68,
+  MIN_ZOOM: 0.52,
 
   // Spawning & Population
   MAX_FOOD_COUNT: 2500,

@@ -63,10 +63,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
   return (
     <div
       style={{
-        // Mathematical 1/8 Screen Area: (0.35355 * W) * (0.35355 * H) = 0.125 * (W * H) = 1/8 Area
-        width: '35.355vw',
+        // Rectangular Leaderboard: 1/6 horizontal (~17.68vw / half previous width), 1/3 vertical (35.355vh)
+        width: '17.68vw',
+        minWidth: '140px',
         height: '35.355vh',
-        fontSize: 'clamp(6.5px, min(1.1vw, 2.3vh), 12px)',
+        fontSize: 'clamp(6.5px, min(1vw, 2.2vh), 12px)',
       }}
       className={`bg-[#0a0e1a]/95 rounded-none rounded-br-lg p-1 sm:p-1.5 select-none flex flex-col justify-between overflow-hidden border-b border-r border-[#1e293b]/60 ${
         isSpectating ? 'pointer-events-auto' : 'pointer-events-none'

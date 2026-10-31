@@ -612,7 +612,7 @@ export class GameEngine {
             const massRatio = Math.max(0, (target.mass - GAME_CONFIG.BASE_MASS) / 2000);
             const growthZoom = 1 / Math.pow(1 + massRatio, 0.36);
             const vH = this.camera.viewportHeight || 900;
-            const responsiveScale = Math.min(1.15, Math.max(0.78, vH / 900));
+            const responsiveScale = Math.min(1.22, Math.max(0.8, vH / 900));
             this.camera.setTargetZoom(Math.max(GAME_CONFIG.MIN_ZOOM, GAME_CONFIG.BASE_ZOOM * responsiveScale * growthZoom));
           }
         } else {
@@ -641,7 +641,7 @@ export class GameEngine {
 
       // Viewport-aware scaling: guarantees consistent Slither.io arena perspective across mobile and desktop
       const vH = this.camera.viewportHeight || 900;
-      const responsiveScale = Math.min(1.15, Math.max(0.78, vH / 900));
+      const responsiveScale = Math.min(1.22, Math.max(0.8, vH / 900));
       const slitherBase = GAME_CONFIG.BASE_ZOOM * responsiveScale;
 
       // Dynamic FOV expansion during high-speed boost (Slither.io boost feel)
